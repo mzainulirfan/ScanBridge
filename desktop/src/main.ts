@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import QRCode from "qrcode";
+import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
 import "./styles.css";
 
 type PairingInfo = {
@@ -29,6 +30,7 @@ const saveSettingsEl = document.querySelector<HTMLButtonElement>("#save-settings
 const barcodeEl = document.querySelector<HTMLInputElement>("#test-barcode")!;
 const sendTestEl = document.querySelector<HTMLButtonElement>("#send-test")!;
 const ackEl = document.querySelector<HTMLParagraphElement>("#ack")!;
+let statusPoll: number | null = null;
 
 async function loadPairing() {
   const pairing = await invoke<PairingInfo>("get_pairing_info");
@@ -46,6 +48,39 @@ async function loadPairing() {
 async function loadStatus() {
   const status = await invoke<{ status: string }>("get_status");
   statusEl.textContent = status.status;
+}
+
+async function startRealtime() {
+  const pairing = await invoke<PairingInfo>("get_pairing_info");
+  const supabase = createSupabaseDesktopClient();
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    await subscribeDesktopSession(
+      supabase,
+      pairing.sessionId,
+      async (event) => {
+        if (event.type !== "scan") {
+          return;
+        }
+
+        const ack = await invoke<{ success: boolean; message: string }>("receive_scan", {
+          event
+        });
+        ackEl.textContent = `${ack.success ? "OK" : "Failed"}: ${ack.message}`;
+      },
+      async () => {
+        await invoke("mark_connected");
+        await loadStatus();
+      }
+    );
+    await invoke("mark_connected");
+    await loadStatus();
+  } catch (error) {
+    ackEl.textContent = error instanceof Error ? error.message : "Realtime connection failed";
+  }
 }
 
 async function loadSettings() {
@@ -86,3 +121,8 @@ sendTestEl.addEventListener("click", async () => {
 void loadPairing();
 void loadStatus();
 void loadSettings();
+void startRealtime();
+
+statusPoll = window.setInterval(() => {
+  void loadStatus();
+}, 2000);
