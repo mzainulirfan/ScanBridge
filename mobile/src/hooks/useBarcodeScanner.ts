@@ -11,9 +11,15 @@ type UseBarcodeScannerOptions = {
 export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarcodeScannerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const lastScanAtRef = useRef(0);
+  const onScanRef = useRef(onScan);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
 
   const stop = useCallback(() => {
     controlsRef.current?.stop();
@@ -22,24 +28,30 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
   }, []);
 
   useEffect(() => {
-    if (!enabled || !videoRef.current) {
+    if (!enabled) {
       stop();
       return;
     }
 
-    let cancelled = false;
-    const reader = new BrowserMultiFormatReader();
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
 
-    void reader
-      .decodeFromConstraints(
-        {
-          video: {
-            facingMode: { ideal: "environment" }
-          },
-          audio: false
-        },
-        videoRef.current,
-        (result) => {
+    if (controlsRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    if (!readerRef.current) {
+      readerRef.current = new BrowserMultiFormatReader();
+    }
+
+    void readerRef.current
+      .decodeFromVideoDevice(
+        undefined,
+        video,
+        (result: { getText: () => string; getBarcodeFormat: () => { toString: () => string } } | undefined) => {
           if (!result || cancelled) {
             return;
           }
@@ -50,13 +62,13 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
           }
 
           lastScanAtRef.current = now;
-          onScan({
+          onScanRef.current({
             barcode: result.getText(),
             symbology: result.getBarcodeFormat().toString()
           });
         }
       )
-      .then((controls) => {
+      .then((controls: IScannerControls) => {
         if (cancelled) {
           controls.stop();
           return;
@@ -74,7 +86,7 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
       cancelled = true;
       stop();
     };
-  }, [cooldownMs, enabled, onScan, stop]);
+  }, [cooldownMs, enabled, stop]);
 
   return {
     videoRef,
