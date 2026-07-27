@@ -66,6 +66,16 @@ export function normalizeBarcode(barcode: string): string {
   return barcode.trim();
 }
 
+export function createClientJoinedEvent(sessionId: string, clientId?: string): ClientJoinedEvent {
+  return {
+    type: "client_joined",
+    sessionId,
+    clientId: clientId ?? createSessionId(),
+    timestamp: new Date().toISOString(),
+    source: "mobile"
+  };
+}
+
 export function createSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();

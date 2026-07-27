@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { buildConnectUrl, createSessionId, normalizeBarcode } from "../../../shared/contracts";
+import { buildConnectUrl, createClientJoinedEvent, createSessionId, normalizeBarcode } from "../../../shared/contracts";
 import { beep, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
@@ -25,7 +25,9 @@ export function useScannerSession() {
 
   useEffect(() => {
     if (screen === "scanner") {
-      void realtime.connect(sessionId);
+      void realtime.connect(sessionId).then(() => {
+        void realtime.publish(createClientJoinedEvent(sessionId));
+      });
     }
   }, [realtime, screen, sessionId]);
 
@@ -54,6 +56,7 @@ export function useScannerSession() {
     setStatus("Reconnecting");
     await realtime.disconnect();
     await realtime.connect(sessionId);
+    await realtime.publish(createClientJoinedEvent(sessionId));
     setStatus("Connected");
   }, [realtime, sessionId]);
 
