@@ -4,5 +4,9 @@ target/
 desktop/src-tauri/target/
 mobile/dist/
 .vite/
+.vercel/
 .DS_Store
 *.log
+.env
+.env.*
+!.env.example
