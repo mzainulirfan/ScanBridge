@@ -33,7 +33,10 @@ fn main() {
             commands::get_settings,
             commands::update_settings,
             commands::receive_scan,
-            commands::mark_connected
+            commands::mark_connected,
+            commands::hide_main_window,
+            commands::show_main_window,
+            commands::exit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running ScanBridge desktop");

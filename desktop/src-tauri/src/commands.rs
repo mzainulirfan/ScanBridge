@@ -6,7 +6,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 pub struct AppState {
     pub app: Mutex<DesktopApp>,
@@ -63,4 +63,20 @@ pub fn receive_scan(event: ScanEvent, state: State<'_, AppState>) -> Result<Scan
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
     let (_typed, ack) = app.receive_scan(event)?;
     Ok(ack)
+}
+
+#[tauri::command]
+pub fn hide_main_window(window: WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn show_main_window(window: WebviewWindow) -> Result<(), String> {
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
 }

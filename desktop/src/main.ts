@@ -1,4 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { defaultWindowIcon } from "@tauri-apps/api/app";
+import { Menu } from "@tauri-apps/api/menu";
+import { TrayIcon } from "@tauri-apps/api/tray";
 import QRCode from "qrcode";
 import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
 import "./styles.css";
@@ -31,6 +34,8 @@ const barcodeEl = document.querySelector<HTMLInputElement>("#test-barcode")!;
 const sendTestEl = document.querySelector<HTMLButtonElement>("#send-test")!;
 const ackEl = document.querySelector<HTMLParagraphElement>("#ack")!;
 let statusPoll: number | null = null;
+let autoHidden = false;
+let tray: TrayIcon | null = null;
 
 async function loadPairing() {
   const pairing = await invoke<PairingInfo>("get_pairing_info");
@@ -48,6 +53,10 @@ async function loadPairing() {
 async function loadStatus() {
   const status = await invoke<{ status: string }>("get_status");
   statusEl.textContent = status.status;
+  if (status.status === "connected" && !autoHidden) {
+    autoHidden = true;
+    await invoke("hide_main_window");
+  }
 }
 
 async function startRealtime() {
@@ -74,10 +83,12 @@ async function startRealtime() {
       async () => {
         await invoke("mark_connected");
         await loadStatus();
+        await invoke("hide_main_window");
       }
     );
     await invoke("mark_connected");
     await loadStatus();
+    await invoke("hide_main_window");
   } catch (error) {
     ackEl.textContent = error instanceof Error ? error.message : "Realtime connection failed";
   }
@@ -89,6 +100,33 @@ async function loadSettings() {
   autoTabEl.checked = settings.autoTab;
   prefixEl.value = settings.prefix;
   suffixEl.value = settings.suffix;
+}
+
+async function initTray() {
+  const menu = await Menu.new({
+    items: [
+      {
+        id: "open",
+        text: "Open",
+        action: () => {
+          void invoke("show_main_window");
+        }
+      },
+      {
+        id: "exit",
+        text: "Exit",
+        action: () => {
+          void invoke("exit_app");
+        }
+      }
+    ]
+  });
+
+  tray = await TrayIcon.new({
+    icon: await defaultWindowIcon(),
+    menu,
+    showMenuOnLeftClick: true
+  });
 }
 
 saveSettingsEl.addEventListener("click", () => {
@@ -121,6 +159,7 @@ sendTestEl.addEventListener("click", async () => {
 void loadPairing();
 void loadStatus();
 void loadSettings();
+void initTray();
 void startRealtime();
 
 statusPoll = window.setInterval(() => {
