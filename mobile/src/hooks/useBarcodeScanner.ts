@@ -28,11 +28,12 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   }
 };
 
-export function useBarcodeScanner({ enabled, cooldownMs = 600, onScan }: UseBarcodeScannerOptions) {
+export function useBarcodeScanner({ enabled, cooldownMs = 250, onScan }: UseBarcodeScannerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const lastScanAtRef = useRef(0);
+  const lastBarcodeRef = useRef("");
   const onScanRef = useRef(onScan);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
@@ -67,8 +68,8 @@ export function useBarcodeScanner({ enabled, cooldownMs = 600, onScan }: UseBarc
       const hints = new Map<DecodeHintType, BarcodeFormat[]>();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS);
       readerRef.current = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 30,
-        delayBetweenScanSuccess: 100
+        delayBetweenScanAttempts: 20,
+        delayBetweenScanSuccess: 40
       });
     }
 
@@ -82,13 +83,15 @@ export function useBarcodeScanner({ enabled, cooldownMs = 600, onScan }: UseBarc
           }
 
           const now = Date.now();
-          if (now - lastScanAtRef.current < cooldownMs) {
+          const barcode = result.getText();
+          if (barcode === lastBarcodeRef.current && now - lastScanAtRef.current < cooldownMs) {
             return;
           }
 
+          lastBarcodeRef.current = barcode;
           lastScanAtRef.current = now;
           onScanRef.current({
-            barcode: result.getText(),
+            barcode,
             symbology: result.getBarcodeFormat().toString()
           });
         }
