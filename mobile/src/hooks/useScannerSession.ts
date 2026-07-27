@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { beep, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
-import { getSessionFromLocation } from "../lib/session";
+import { getSessionFromLocation, getStoredPairingCode, storePairingCode } from "../lib/session";
 import {
   createClientJoinedEvent,
   formatPairingCode,
@@ -15,9 +15,16 @@ export type ScannerState = "home" | "connect" | "scanner";
 
 export function useScannerSession() {
   const sessionFromUrl = useMemo(() => getSessionFromLocation(), []);
-  const [screen, setScreen] = useState<ScannerState>(sessionFromUrl ? "scanner" : "home");
-  const [sessionId, setSessionId] = useState(sessionFromUrl ? normalizePairingCode(sessionFromUrl) : "");
-  const [status, setStatus] = useState<string>(sessionFromUrl ? "Connecting" : "Ready to pair");
+  const initialSessionId = useMemo(() => {
+    const urlCode = normalizePairingCode(sessionFromUrl ?? "");
+    if (isValidPairingCode(urlCode)) {
+      return urlCode;
+    }
+    return getStoredPairingCode() ?? "";
+  }, [sessionFromUrl]);
+  const [screen, setScreen] = useState<ScannerState>(initialSessionId ? "scanner" : "home");
+  const [sessionId, setSessionId] = useState(initialSessionId);
+  const [status, setStatus] = useState<string>(initialSessionId ? "Connecting" : "Ready to pair");
   const [barcode, setBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
   const [realtime] = useState(() => createRealtimeClient());
@@ -30,13 +37,6 @@ export function useScannerSession() {
       }
     });
   }, [realtime]);
-
-  useEffect(() => {
-    if (sessionFromUrl) {
-      setSessionId(normalizePairingCode(sessionFromUrl));
-      setScreen("scanner");
-    }
-  }, [sessionFromUrl]);
 
   useEffect(() => {
     if (screen === "scanner") {
@@ -71,6 +71,7 @@ export function useScannerSession() {
       setLastAck("Enter the 6-character code shown on desktop.");
       return;
     }
+    storePairingCode(sessionId);
     setScreen("scanner");
   }, [sessionId]);
 
