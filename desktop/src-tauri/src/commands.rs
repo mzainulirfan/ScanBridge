@@ -1,0 +1,59 @@
+use crate::{
+    app::DesktopApp,
+    config::AppConfig,
+    contracts::{DesktopStatusEvent, ScanAckEvent, ScanEvent},
+    qr,
+};
+use serde::Serialize;
+use std::sync::Mutex;
+use tauri::State;
+
+pub struct AppState {
+    pub app: Mutex<DesktopApp>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingInfo {
+    pub session_id: String,
+    pub channel_name: String,
+    pub pairing_url: String,
+    pub qr_placeholder: String,
+}
+
+#[tauri::command]
+pub fn get_pairing_info(state: State<'_, AppState>) -> Result<PairingInfo, String> {
+    let app = state.app.lock().map_err(|error| error.to_string())?;
+    Ok(PairingInfo {
+        session_id: app.session.id(),
+        channel_name: app.channel.channel_name.clone(),
+        pairing_url: qr::build_pairing_url(&app.session.id()),
+        qr_placeholder: qr::render_placeholder(&app.channel),
+    })
+}
+
+#[tauri::command]
+pub fn get_status(state: State<'_, AppState>) -> Result<DesktopStatusEvent, String> {
+    let app = state.app.lock().map_err(|error| error.to_string())?;
+    Ok(app.status())
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> Result<AppConfig, String> {
+    let app = state.app.lock().map_err(|error| error.to_string())?;
+    Ok(app.config.clone())
+}
+
+#[tauri::command]
+pub fn update_settings(settings: AppConfig, state: State<'_, AppState>) -> Result<AppConfig, String> {
+    let mut app = state.app.lock().map_err(|error| error.to_string())?;
+    app.config = settings.clone();
+    Ok(settings)
+}
+
+#[tauri::command]
+pub fn receive_scan(event: ScanEvent, state: State<'_, AppState>) -> Result<ScanAckEvent, String> {
+    let mut app = state.app.lock().map_err(|error| error.to_string())?;
+    let (_typed, ack) = app.receive_scan(event)?;
+    Ok(ack)
+}

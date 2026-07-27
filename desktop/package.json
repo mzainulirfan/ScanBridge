@@ -1,0 +1,21 @@
+{
+  "name": "scanbridge-desktop",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^5.4.19"
+  },
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "frontend:dev": "vite --host 127.0.0.1 --port 5174",
+    "frontend:build": "vite build"
+  }
+}

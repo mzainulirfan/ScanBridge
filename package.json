@@ -1,0 +1,15 @@
+{
+  "name": "scanbridge",
+  "private": true,
+  "workspaces": [
+    "mobile",
+    "desktop"
+  ],
+  "scripts": {
+    "dev:mobile": "npm --workspace mobile run dev",
+    "build:mobile": "npm --workspace mobile run build",
+    "typecheck:mobile": "npm --workspace mobile run typecheck",
+    "dev:desktop": "npm --workspace desktop run dev",
+    "build:desktop-frontend": "npm --workspace desktop run frontend:build"
+  }
+}

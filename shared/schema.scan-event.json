@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScanEvent",
+  "type": "object",
+  "required": ["type", "sessionId", "barcode", "timestamp", "source"],
+  "properties": {
+    "type": { "const": "scan" },
+    "sessionId": { "type": "string", "format": "uuid" },
+    "barcode": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "symbology": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "source": { "const": "mobile" }
+  }
+}
