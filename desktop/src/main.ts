@@ -82,9 +82,6 @@ async function startRealtime() {
         await invoke("hide_main_window");
       }
     );
-    await invoke("mark_connected");
-    await loadStatus();
-    await invoke("hide_main_window");
   } catch (error) {
     ackEl.textContent = error instanceof Error ? error.message : "Realtime connection failed";
   }

@@ -1,5 +1,5 @@
-import type { ScanEvent } from "../../../shared/contracts";
-import { normalizeBarcode } from "../../../shared/contracts";
+import type { ScanEvent } from "../shared/contracts";
+import { normalizeBarcode } from "../shared/contracts";
 
 export interface ScanResult {
   barcode: string;

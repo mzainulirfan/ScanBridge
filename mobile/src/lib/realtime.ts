@@ -1,6 +1,6 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
-import type { RealtimeEvent } from "../../../shared/contracts";
-import { buildSessionChannel } from "../../../shared/contracts";
+import type { RealtimeEvent } from "../shared/contracts";
+import { buildSessionChannel } from "../shared/contracts";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 
