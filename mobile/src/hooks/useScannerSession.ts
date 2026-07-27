@@ -11,7 +11,7 @@ export function useScannerSession() {
   const sessionFromUrl = useMemo(() => getSessionFromLocation(), []);
   const [screen, setScreen] = useState<ScannerState>(sessionFromUrl ? "scanner" : "home");
   const [sessionId, setSessionId] = useState(sessionFromUrl ?? createSessionId());
-  const [status, setStatus] = useState<string>(sessionFromUrl ? "Connected" : "Ready to pair");
+  const [status, setStatus] = useState<string>(sessionFromUrl ? "Connecting" : "Ready to pair");
   const [barcode, setBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
   const [realtime] = useState(() => createRealtimeClient());
@@ -30,10 +30,12 @@ export function useScannerSession() {
         .connect(sessionId)
         .then(() => realtime.publish(createClientJoinedEvent(sessionId)))
         .then(() => {
-          setStatus("Connected");
+          setStatus("Connected to relay");
+          setLastAck("Pairing signal sent. Desktop should show Mobile: Joined.");
         })
         .catch(() => {
           setStatus("Disconnected");
+          setLastAck("Realtime failed. Check Supabase env and internet connection.");
         });
     }
   }, [realtime, screen, sessionId]);
@@ -52,7 +54,7 @@ export function useScannerSession() {
       await realtime.publish(event);
       setBarcode(clean);
       setLastAck(`Published ${clean}`);
-      setStatus("Connected");
+      setStatus("Connected to relay");
       beep();
       vibrate();
     },
@@ -64,7 +66,8 @@ export function useScannerSession() {
     await realtime.disconnect();
     await realtime.connect(sessionId);
     await realtime.publish(createClientJoinedEvent(sessionId));
-    setStatus("Connected");
+    setStatus("Connected to relay");
+    setLastAck("Pairing signal sent. Desktop should show Mobile: Joined.");
   }, [realtime, sessionId]);
 
   return {

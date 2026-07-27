@@ -55,6 +55,27 @@ h2 {
   background: rgba(56, 189, 248, 0.14);
 }
 
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.status-grid div {
+  min-width: 0;
+}
+
+.status-grid dt {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.status-grid dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+
 input {
   width: 100%;
   box-sizing: border-box;

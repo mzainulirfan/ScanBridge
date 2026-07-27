@@ -20,6 +20,10 @@ type DesktopSettings = {
 };
 
 const statusEl = document.querySelector<HTMLSpanElement>("#status")!;
+const relayStatusEl = document.querySelector<HTMLElement>("#relay-status")!;
+const mobileStatusEl = document.querySelector<HTMLElement>("#mobile-status")!;
+const lastEventEl = document.querySelector<HTMLElement>("#last-event")!;
+const lastScanEl = document.querySelector<HTMLElement>("#last-scan")!;
 const qrEl = document.querySelector<HTMLCanvasElement>("#qr")!;
 const pairingUrlEl = document.querySelector<HTMLParagraphElement>("#pairing-url")!;
 const autoEnterEl = document.querySelector<HTMLInputElement>("#auto-enter")!;
@@ -59,30 +63,44 @@ async function startRealtime() {
   const pairing = await invoke<PairingInfo>("get_pairing_info");
   const supabase = createSupabaseDesktopClient();
   if (!supabase) {
+    relayStatusEl.textContent = "Missing Supabase env";
+    mobileStatusEl.textContent = "Not connected";
+    ackEl.textContent = "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in desktop/.env.local, then restart desktop.";
     return;
   }
 
   try {
+    relayStatusEl.textContent = "Connecting";
     await subscribeDesktopSession(
       supabase,
       pairing.sessionId,
       async (event) => {
+        lastEventEl.textContent = event.type;
         if (event.type !== "scan") {
           return;
         }
 
+        lastScanEl.textContent = event.barcode;
         const ack = await invoke<{ success: boolean; message: string }>("receive_scan", {
           event
         });
         ackEl.textContent = `${ack.success ? "OK" : "Failed"}: ${ack.message}`;
       },
       async () => {
+        mobileStatusEl.textContent = "Joined";
+        lastEventEl.textContent = "client_joined";
         await invoke("mark_connected");
         await loadStatus();
         await invoke("hide_main_window");
+      },
+      async () => {
+        relayStatusEl.textContent = "Subscribed";
+        ackEl.textContent = "Relay ready. Scan this QR from mobile.";
       }
     );
   } catch (error) {
+    relayStatusEl.textContent = "Failed";
+    mobileStatusEl.textContent = "Not connected";
     ackEl.textContent = error instanceof Error ? error.message : "Realtime connection failed";
   }
 }

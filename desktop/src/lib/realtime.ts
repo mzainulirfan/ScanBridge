@@ -38,7 +38,8 @@ export async function subscribeDesktopSession(
   supabase: DesktopSupabase,
   sessionId: string,
   onScan: (event: RealtimeEvent) => Promise<void>,
-  onConnected: () => Promise<void>
+  onConnected: () => Promise<void>,
+  onSubscribed?: () => Promise<void>
 ): Promise<void> {
   const channel = supabase.channel(buildSessionChannel(sessionId), {
     config: { broadcast: { self: true } }
@@ -57,6 +58,7 @@ export async function subscribeDesktopSession(
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         window.clearTimeout(timeout);
+        void onSubscribed?.();
         resolve();
       }
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {

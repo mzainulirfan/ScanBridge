@@ -57,7 +57,7 @@ export function buildSessionChannel(sessionId: string): string {
 }
 
 export function buildConnectUrl(sessionId: string): string {
-  const url = new URL("https://scanbridge.app/connect");
+  const url = new URL("https://scanbridge-mobile.vercel.app/connect");
   url.searchParams.set("session", sessionId);
   return url.toString();
 }
