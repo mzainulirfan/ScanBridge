@@ -1,5 +1,6 @@
 export type RealtimeEventType =
   | "client_joined"
+  | "client_left"
   | "scan"
   | "scan_ack"
   | "desktop_status";
@@ -17,6 +18,11 @@ export interface ClientJoinedEvent extends BaseEvent {
   type: "client_joined";
   clientId: string;
   clientName?: string;
+  source: "mobile";
+}
+
+export interface ClientLeftEvent extends BaseEvent {
+  type: "client_left";
   source: "mobile";
 }
 
@@ -42,6 +48,7 @@ export interface DesktopStatusEvent extends BaseEvent {
 
 export type RealtimeEvent =
   | ClientJoinedEvent
+  | ClientLeftEvent
   | ScanEvent
   | ScanAckEvent
   | DesktopStatusEvent;
@@ -84,6 +91,15 @@ export function createClientJoinedEvent(sessionId: string, clientId?: string): C
     type: "client_joined",
     sessionId,
     clientId: clientId ?? createSessionId(),
+    timestamp: new Date().toISOString(),
+    source: "mobile"
+  };
+}
+
+export function createClientLeftEvent(sessionId: string): ClientLeftEvent {
+  return {
+    type: "client_left",
+    sessionId,
     timestamp: new Date().toISOString(),
     source: "mobile"
   };

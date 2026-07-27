@@ -161,6 +161,12 @@ button {
   color: #201d1d;
 }
 
+.danger {
+  border-color: #ff3b30;
+  background: #fdfcfc;
+  color: #a50011;
+}
+
 .pairing-panel .primary {
   border-color: #fdfcfc;
   background: #fdfcfc;

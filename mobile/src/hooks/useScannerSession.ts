@@ -2,9 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { beep, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
-import { getSessionFromLocation, getStoredPairingCode, storePairingCode } from "../lib/session";
+import {
+  clearSessionFromLocation,
+  clearStoredPairingCode,
+  getSessionFromLocation,
+  getStoredPairingCode,
+  storePairingCode
+} from "../lib/session";
 import {
   createClientJoinedEvent,
+  createClientLeftEvent,
   formatPairingCode,
   isValidPairingCode,
   normalizeBarcode,
@@ -29,17 +36,43 @@ export function useScannerSession() {
   const [lastAck, setLastAck] = useState<string>("");
   const [realtime] = useState(() => createRealtimeClient());
 
+  const disconnect = useCallback(
+    async (notifyDesktop = true) => {
+      if (notifyDesktop && isValidPairingCode(sessionId)) {
+        try {
+          await realtime.publish(createClientLeftEvent(sessionId));
+        } catch {
+          // Continue with local disconnect when the relay is already unavailable.
+        }
+      }
+      await realtime.disconnect();
+      clearStoredPairingCode();
+      clearSessionFromLocation();
+      setSessionId("");
+      setBarcode("");
+      setLastAck("");
+      setStatus("Ready to pair");
+      setScreen("home");
+    },
+    [realtime, sessionId]
+  );
+
   useEffect(() => {
     realtime.onEvent?.((event) => {
       if (event.type === "desktop_status") {
+        if (event.status === "idle") {
+          void disconnect(false);
+          return;
+        }
         setStatus("Desktop ready");
         setLastAck("Desktop is online. Scanner is ready.");
       }
     });
-  }, [realtime]);
+  }, [disconnect, realtime]);
 
   useEffect(() => {
     if (screen === "scanner") {
+      let cancelled = false;
       if (!isValidPairingCode(sessionId)) {
         setStatus("Invalid code");
         setLastAck("Enter the 6-character code shown on desktop.");
@@ -51,13 +84,19 @@ export function useScannerSession() {
         .connect(sessionId)
         .then(() => realtime.publish(createClientJoinedEvent(sessionId)))
         .then(() => {
+          if (cancelled) return;
           setStatus("Connected to relay");
           setLastAck("Pairing signal sent. Desktop should show Mobile: Joined.");
         })
         .catch(() => {
+          if (cancelled) return;
           setStatus("Disconnected");
           setLastAck("Realtime failed. Check Supabase env and internet connection.");
         });
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [realtime, screen, sessionId]);
 
@@ -118,6 +157,7 @@ export function useScannerSession() {
     lastAck,
     setLastAck,
     submitScan,
-    reconnect
+    reconnect,
+    disconnect: () => disconnect(true)
   };
 }

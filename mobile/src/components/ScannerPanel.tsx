@@ -10,6 +10,7 @@ type ScannerPanelProps = {
   videoRef: RefObject<HTMLVideoElement>;
   onBarcodeChange: (value: string) => void;
   onReconnect: () => void;
+  onDisconnect: () => void;
   onSubmitScan: (value: string) => void;
 };
 
@@ -22,6 +23,7 @@ function ScannerPanel({
   videoRef,
   onBarcodeChange,
   onReconnect,
+  onDisconnect,
   onSubmitScan
 }: ScannerPanelProps) {
   return (
@@ -34,6 +36,7 @@ function ScannerPanel({
         videoRef={videoRef}
         onBarcodeChange={onBarcodeChange}
         onReconnect={onReconnect}
+        onDisconnect={onDisconnect}
         onReady={() => onSubmitScan(barcode)}
       />
       <section className="ack-panel" aria-live="polite">

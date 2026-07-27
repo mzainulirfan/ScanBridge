@@ -58,6 +58,13 @@ pub fn mark_connected(state: State<'_, AppState>) -> Result<DesktopStatusEvent, 
 }
 
 #[tauri::command]
+pub fn mark_disconnected(state: State<'_, AppState>) -> Result<DesktopStatusEvent, String> {
+    let mut app = state.app.lock().map_err(|error| error.to_string())?;
+    app.disconnect();
+    Ok(app.status())
+}
+
+#[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Result<AppConfig, String> {
     let app = state.app.lock().map_err(|error| error.to_string())?;
     Ok(app.config.clone())

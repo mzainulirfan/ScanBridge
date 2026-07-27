@@ -60,6 +60,7 @@ fn main() {
             commands::update_settings,
             commands::receive_scan,
             commands::mark_connected,
+            commands::mark_disconnected,
             commands::hide_main_window,
             commands::show_main_window,
             commands::exit_app

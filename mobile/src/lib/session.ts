@@ -34,3 +34,20 @@ export function storePairingCode(pairingCode: string, storage?: Storage): void {
     // Pairing still works when storage is unavailable or blocked.
   }
 }
+
+export function clearStoredPairingCode(storage?: Storage): void {
+  try {
+    (storage ?? window.localStorage).removeItem(PAIRING_CODE_STORAGE_KEY);
+  } catch {
+    // The in-memory session can still be disconnected.
+  }
+}
+
+export function clearSessionFromLocation(location = window.location, history = window.history): void {
+  const url = new URL(location.href);
+  url.searchParams.delete("session");
+  if (url.pathname.startsWith("/connect")) {
+    url.pathname = "/";
+  }
+  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}

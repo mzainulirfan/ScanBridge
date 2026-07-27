@@ -27,6 +27,7 @@ const pairingCodeEl = document.querySelector<HTMLElement>("#pairing-code")!;
 const pairingUrlEl = document.querySelector<HTMLParagraphElement>("#pairing-url")!;
 const copyCodeEl = document.querySelector<HTMLButtonElement>("#copy-code")!;
 const newCodeEl = document.querySelector<HTMLButtonElement>("#new-code")!;
+const disconnectSessionEl = document.querySelector<HTMLButtonElement>("#disconnect-session")!;
 const autoEnterEl = document.querySelector<HTMLInputElement>("#auto-enter")!;
 const autoTabEl = document.querySelector<HTMLInputElement>("#auto-tab")!;
 const prefixEl = document.querySelector<HTMLInputElement>("#prefix")!;
@@ -37,6 +38,7 @@ const sendTestEl = document.querySelector<HTMLButtonElement>("#send-test")!;
 const ackEl = document.querySelector<HTMLParagraphElement>("#ack")!;
 let statusPoll: number | null = null;
 let autoHidden = false;
+let activeChannel: Awaited<ReturnType<typeof subscribeDesktopSession>> | null = null;
 
 async function loadPairing() {
   const pairing = await invoke<PairingInfo>("get_pairing_info");
@@ -74,7 +76,7 @@ async function startRealtime() {
   try {
     relayStatusEl.textContent = "Connecting";
     relayStatusEl.dataset.state = "idle";
-    await subscribeDesktopSession(
+    activeChannel = await subscribeDesktopSession(
       supabase,
       pairing.sessionId,
       async (event) => {
@@ -96,6 +98,15 @@ async function startRealtime() {
         await invoke("mark_connected");
         await loadStatus();
         await invoke("hide_main_window");
+      },
+      async () => {
+        mobileStatusEl.textContent = "Waiting";
+        mobileStatusEl.dataset.state = "idle";
+        lastEventEl.textContent = "client_left";
+        autoHidden = false;
+        await invoke("mark_disconnected");
+        await loadStatus();
+        ackEl.textContent = "mobile.disconnected / ready for pairing";
       },
       async () => {
         relayStatusEl.textContent = "Subscribed";
@@ -159,6 +170,25 @@ copyCodeEl.addEventListener("click", async () => {
 });
 
 newCodeEl.addEventListener("click", async () => {
+  await invoke("reset_pairing_code");
+  window.location.reload();
+});
+
+disconnectSessionEl.addEventListener("click", async () => {
+  const pairing = await invoke<PairingInfo>("get_pairing_info");
+  if (activeChannel) {
+    await activeChannel.send({
+      type: "broadcast",
+      event: "desktop_status",
+      payload: {
+        type: "desktop_status",
+        sessionId: pairing.sessionId,
+        status: "idle",
+        deviceCount: 0,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
   await invoke("reset_pairing_code");
   window.location.reload();
 });

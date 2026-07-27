@@ -6,6 +6,7 @@ type ScannerFrameProps = {
   videoRef: React.RefObject<HTMLVideoElement>;
   onBarcodeChange: (value: string) => void;
   onReconnect: () => void;
+  onDisconnect: () => void;
   onReady: () => void;
 };
 
@@ -17,6 +18,7 @@ function ScannerFrame({
   videoRef,
   onBarcodeChange,
   onReconnect,
+  onDisconnect,
   onReady
 }: ScannerFrameProps) {
   return (
@@ -63,6 +65,9 @@ function ScannerFrame({
       <div className="action-row">
         <button className="secondary" onClick={onReconnect} type="button">
           [reconnect relay]
+        </button>
+        <button className="danger" onClick={onDisconnect} type="button">
+          [disconnect]
         </button>
       </div>
     </section>

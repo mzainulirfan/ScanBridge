@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import type { RealtimeEvent } from "../../../shared/contracts";
 import { buildSessionChannel } from "../../../shared/contracts";
 
@@ -39,14 +39,19 @@ export async function subscribeDesktopSession(
   sessionId: string,
   onScan: (event: RealtimeEvent) => Promise<void>,
   onConnected: () => Promise<void>,
+  onDisconnected: () => Promise<void>,
   onSubscribed?: () => Promise<void>
-): Promise<void> {
+): Promise<RealtimeChannel> {
   const channel = supabase.channel(buildSessionChannel(sessionId), {
     config: { broadcast: { self: true } }
   });
 
   channel.on("broadcast", { event: "client_joined" }, async () => {
     await onConnected();
+  });
+
+  channel.on("broadcast", { event: "client_left" }, async () => {
+    await onDisconnected();
   });
 
   channel.on("broadcast", { event: "scan" }, async (payload) => {
@@ -78,4 +83,6 @@ export async function subscribeDesktopSession(
       }
     });
   });
+
+  return channel;
 }

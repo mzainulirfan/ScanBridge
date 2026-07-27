@@ -22,6 +22,10 @@ impl SessionManager {
         self.connected = true;
     }
 
+    pub fn mark_disconnected(&mut self) {
+        self.connected = false;
+    }
+
     pub fn reset(&mut self) {
         self.id = create_pairing_code();
         self.connected = false;

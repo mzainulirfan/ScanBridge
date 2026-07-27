@@ -15,7 +15,8 @@ function App() {
     setBarcode,
     lastAck,
     submitScan,
-    reconnect
+    reconnect,
+    disconnect
   } = useScannerSession();
   const scanner = useBarcodeScanner({
     enabled: screen === "scanner",
@@ -52,6 +53,9 @@ function App() {
           onBarcodeChange={setBarcode}
           onReconnect={() => {
             void reconnect();
+          }}
+          onDisconnect={() => {
+            void disconnect();
           }}
           onSubmitScan={(value) => {
             void submitScan(value);
