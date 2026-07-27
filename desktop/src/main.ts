@@ -1,14 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
 import "./styles.css";
 
-type PairingInfo = {
-  sessionId: string;
-  channelName: string;
-  pairingUrl: string;
-  qrPlaceholder: string;
-};
-
+type TabName = "summary" | "output" | "activity";
+type PairingInfo = { sessionId: string };
+type DesktopStatus = { status: string };
 type DesktopSettings = {
   autoEnter: boolean;
   autoTab: boolean;
@@ -17,33 +14,62 @@ type DesktopSettings = {
   historyEnabled: boolean;
   historyLimit: number;
 };
+type HistoryItem = {
+  barcode: string;
+  symbology?: string | null;
+  receivedAt: string;
+  typed: boolean;
+  message?: string | null;
+};
 
-const statusEl = document.querySelector<HTMLSpanElement>("#status")!;
-const relayStatusEl = document.querySelector<HTMLElement>("#relay-status")!;
-const mobileStatusEl = document.querySelector<HTMLElement>("#mobile-status")!;
-const lastEventEl = document.querySelector<HTMLElement>("#last-event")!;
-const lastScanEl = document.querySelector<HTMLElement>("#last-scan")!;
-const pairingCodeEl = document.querySelector<HTMLElement>("#pairing-code")!;
-const pairingUrlEl = document.querySelector<HTMLParagraphElement>("#pairing-url")!;
-const copyCodeEl = document.querySelector<HTMLButtonElement>("#copy-code")!;
-const newCodeEl = document.querySelector<HTMLButtonElement>("#new-code")!;
-const disconnectSessionEl = document.querySelector<HTMLButtonElement>("#disconnect-session")!;
-const autoEnterEl = document.querySelector<HTMLInputElement>("#auto-enter")!;
-const autoTabEl = document.querySelector<HTMLInputElement>("#auto-tab")!;
-const prefixEl = document.querySelector<HTMLInputElement>("#prefix")!;
-const suffixEl = document.querySelector<HTMLInputElement>("#suffix")!;
-const saveSettingsEl = document.querySelector<HTMLButtonElement>("#save-settings")!;
-const barcodeEl = document.querySelector<HTMLInputElement>("#test-barcode")!;
-const sendTestEl = document.querySelector<HTMLButtonElement>("#send-test")!;
-const ackEl = document.querySelector<HTMLParagraphElement>("#ack")!;
-let statusPoll: number | null = null;
-let autoHidden = false;
+const byId = <T extends HTMLElement>(id: string) => document.querySelector<T>(`#${id}`)!;
+const statusEl = byId<HTMLSpanElement>("status");
+const relayStatusEl = byId<HTMLElement>("relay-status");
+const mobileStatusEl = byId<HTMLElement>("mobile-status");
+const lastEventEl = byId<HTMLElement>("last-event");
+const lastScanEl = byId<HTMLElement>("last-scan");
+const sessionStateEl = byId<HTMLElement>("session-state");
+const pairingCodeEl = byId<HTMLElement>("pairing-code");
+const pairingUrlEl = byId<HTMLElement>("pairing-url");
+const summaryMessageEl = byId<HTMLElement>("summary-message");
+const outputMessageEl = byId<HTMLElement>("output-message");
+const autoEnterEl = byId<HTMLInputElement>("auto-enter");
+const autoTabEl = byId<HTMLInputElement>("auto-tab");
+const historyEnabledEl = byId<HTMLInputElement>("history-enabled");
+const prefixEl = byId<HTMLInputElement>("prefix");
+const suffixEl = byId<HTMLInputElement>("suffix");
+const testBarcodeEl = byId<HTMLInputElement>("test-barcode");
+const activityListEl = byId<HTMLElement>("activity-list");
+const activityCountEl = byId<HTMLElement>("activity-count");
+
 let activeChannel: Awaited<ReturnType<typeof subscribeDesktopSession>> | null = null;
+let autoHidden = false;
+let currentPairing: PairingInfo | null = null;
+
+function setMessage(element: HTMLElement, message: string, state: "idle" | "success" | "error" = "idle") {
+  element.textContent = message;
+  element.dataset.state = state;
+}
+
+function activateTab(tab: TabName) {
+  document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
+    const active = button.dataset.tab === tab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll<HTMLElement>("[data-panel]").forEach((panel) => {
+    const active = panel.dataset.panel === tab;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+  if (tab === "activity") void loadHistory();
+}
 
 async function loadPairing() {
-  const pairing = await invoke<PairingInfo>("get_pairing_info");
-  pairingCodeEl.textContent = formatPairingCode(pairing.sessionId);
-  pairingUrlEl.textContent = `Enter this code on mobile: ${formatPairingCode(pairing.sessionId)}`;
+  currentPairing = await invoke<PairingInfo>("get_pairing_info");
+  const formatted = formatPairingCode(currentPairing.sessionId);
+  pairingCodeEl.textContent = formatted;
+  pairingUrlEl.textContent = `kode sesi: ${formatted}`;
 }
 
 function formatPairingCode(value: string): string {
@@ -51,75 +77,84 @@ function formatPairingCode(value: string): string {
   return clean.length > 3 ? `${clean.slice(0, 3)} ${clean.slice(3)}` : clean;
 }
 
-async function loadStatus() {
-  const status = await invoke<{ status: string }>("get_status");
-  statusEl.textContent = status.status;
-  statusEl.dataset.state = status.status === "connected" ? "active" : "idle";
-  if (status.status === "connected" && !autoHidden) {
+async function loadStatus(allowAutoHide = true) {
+  const result = await invoke<DesktopStatus>("get_status");
+  const connected = result.status === "connected";
+  statusEl.textContent = connected ? "[x] terhubung" : "[ ] menunggu";
+  statusEl.dataset.state = connected ? "active" : "idle";
+  sessionStateEl.textContent = connected ? "session.connected" : "session.active";
+  if (connected && allowAutoHide && !autoHidden) {
     autoHidden = true;
     await invoke("hide_main_window");
   }
 }
 
 async function startRealtime() {
-  const pairing = await invoke<PairingInfo>("get_pairing_info");
+  const pairing = currentPairing ?? (await invoke<PairingInfo>("get_pairing_info"));
   const supabase = createSupabaseDesktopClient();
   if (!supabase) {
-    relayStatusEl.textContent = "Missing Supabase env";
+    relayStatusEl.textContent = "env belum diatur";
     relayStatusEl.dataset.state = "error";
-    mobileStatusEl.textContent = "Not connected";
+    mobileStatusEl.textContent = "tidak terhubung";
     mobileStatusEl.dataset.state = "error";
-    ackEl.textContent = "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in desktop/.env.local, then restart desktop.";
+    statusEl.textContent = "[!] konfigurasi";
+    statusEl.dataset.state = "error";
+    setMessage(
+      summaryMessageEl,
+      "Supabase env belum tersedia. Atur VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY, lalu restart.",
+      "error"
+    );
     return;
   }
 
   try {
-    relayStatusEl.textContent = "Connecting";
-    relayStatusEl.dataset.state = "idle";
+    relayStatusEl.textContent = "menghubungkan";
+    relayStatusEl.dataset.state = "loading";
     activeChannel = await subscribeDesktopSession(
       supabase,
       pairing.sessionId,
       async (event) => {
         lastEventEl.textContent = event.type;
-        if (event.type !== "scan") {
-          return;
-        }
+        if (event.type !== "scan") return;
 
         lastScanEl.textContent = event.barcode;
-        const ack = await invoke<{ success: boolean; message: string }>("receive_scan", {
-          event
-        });
-        ackEl.textContent = `${ack.success ? "OK" : "Failed"}: ${ack.message}`;
+        try {
+          const ack = await invoke<{ success: boolean; message: string }>("receive_scan", { event });
+          setMessage(summaryMessageEl, `scan.berhasil / ${ack.message}`, "success");
+        } catch (error) {
+          setMessage(summaryMessageEl, errorMessage(error, "Gagal mengetik barcode."), "error");
+        }
       },
       async () => {
-        mobileStatusEl.textContent = "Joined";
+        mobileStatusEl.textContent = "terhubung";
         mobileStatusEl.dataset.state = "active";
         lastEventEl.textContent = "client_joined";
         await invoke("mark_connected");
         await loadStatus();
-        await invoke("hide_main_window");
       },
       async () => {
-        mobileStatusEl.textContent = "Waiting";
+        mobileStatusEl.textContent = "menunggu";
         mobileStatusEl.dataset.state = "idle";
         lastEventEl.textContent = "client_left";
         autoHidden = false;
         await invoke("mark_disconnected");
-        await loadStatus();
-        ackEl.textContent = "mobile.disconnected / ready for pairing";
+        await loadStatus(false);
+        setMessage(summaryMessageEl, "mobile.terputus / siap untuk pairing", "idle");
       },
       async () => {
-        relayStatusEl.textContent = "Subscribed";
+        relayStatusEl.textContent = "aktif";
         relayStatusEl.dataset.state = "active";
-        ackEl.textContent = "relay.ready / enter pairing code on mobile";
+        setMessage(summaryMessageEl, "relay.siap / masukkan kode pairing di mobile", "success");
       }
     );
   } catch (error) {
-    relayStatusEl.textContent = "Failed";
+    relayStatusEl.textContent = "gagal";
     relayStatusEl.dataset.state = "error";
-    mobileStatusEl.textContent = "Not connected";
+    mobileStatusEl.textContent = "tidak terhubung";
     mobileStatusEl.dataset.state = "error";
-    ackEl.textContent = error instanceof Error ? error.message : "Realtime connection failed";
+    statusEl.textContent = "[!] relay gagal";
+    statusEl.dataset.state = "error";
+    setMessage(summaryMessageEl, errorMessage(error, "Koneksi realtime gagal."), "error");
   }
 }
 
@@ -127,11 +162,12 @@ async function loadSettings() {
   const settings = await invoke<DesktopSettings>("get_settings");
   autoEnterEl.checked = settings.autoEnter;
   autoTabEl.checked = settings.autoTab;
+  historyEnabledEl.checked = settings.historyEnabled;
   prefixEl.value = settings.prefix;
   suffixEl.value = settings.suffix;
 }
 
-saveSettingsEl.addEventListener("click", async () => {
+async function saveSettings() {
   try {
     await invoke("update_settings", {
       settings: {
@@ -139,43 +175,80 @@ saveSettingsEl.addEventListener("click", async () => {
         autoTab: autoTabEl.checked,
         prefix: prefixEl.value,
         suffix: suffixEl.value,
-        historyEnabled: true,
+        historyEnabled: historyEnabledEl.checked,
         historyLimit: 100
       }
     });
-    ackEl.textContent = "settings.saved";
+    setMessage(outputMessageEl, "pengaturan.tersimpan", "success");
   } catch (error) {
-    ackEl.textContent = error instanceof Error ? error.message : "settings.save_failed";
+    setMessage(outputMessageEl, errorMessage(error, "Pengaturan gagal disimpan."), "error");
   }
-});
+}
 
-sendTestEl.addEventListener("click", async () => {
-  const pairing = await invoke<PairingInfo>("get_pairing_info");
-  const ack = await invoke<{ success: boolean; message: string }>("receive_scan", {
-    event: {
-      type: "scan",
-      sessionId: pairing.sessionId,
-      barcode: barcodeEl.value,
-      timestamp: new Date().toISOString(),
-      source: "mobile"
-    }
-  });
-  ackEl.textContent = `${ack.success ? "OK" : "Failed"}: ${ack.message}`;
-});
+async function sendTestScan() {
+  if (!currentPairing) await loadPairing();
+  try {
+    const ack = await invoke<{ success: boolean; message: string }>("receive_scan", {
+      event: {
+        type: "scan",
+        sessionId: currentPairing!.sessionId,
+        barcode: testBarcodeEl.value,
+        timestamp: new Date().toISOString(),
+        source: "mobile"
+      }
+    });
+    setMessage(outputMessageEl, `uji.berhasil / ${ack.message}`, "success");
+  } catch (error) {
+    setMessage(outputMessageEl, errorMessage(error, "Uji output gagal."), "error");
+  }
+}
 
-copyCodeEl.addEventListener("click", async () => {
-  const pairing = await invoke<PairingInfo>("get_pairing_info");
-  await navigator.clipboard.writeText(pairing.sessionId);
-  ackEl.textContent = `Copied code ${formatPairingCode(pairing.sessionId)}`;
-});
+async function loadHistory() {
+  try {
+    const items = await invoke<HistoryItem[]>("get_history");
+    renderHistory(items);
+  } catch (error) {
+    activityCountEl.textContent = "gagal memuat";
+    activityListEl.innerHTML = `<div class="empty-state">[!] ${escapeHtml(errorMessage(error, "Riwayat gagal dimuat."))}</div>`;
+  }
+}
 
-newCodeEl.addEventListener("click", async () => {
-  await invoke("reset_pairing_code");
-  window.location.reload();
-});
+function renderHistory(items: HistoryItem[]) {
+  activityCountEl.textContent = `${items.length} dari maksimal 100 scan`;
+  if (items.length === 0) {
+    activityListEl.innerHTML = '<div class="empty-state">[ ] Belum ada aktivitas scan.</div>';
+    return;
+  }
+  activityListEl.innerHTML = items
+    .map((item) => {
+      const status = item.typed ? "[x] typed" : "[!] failed";
+      const statusClass = item.typed ? "activity-status" : "activity-status failed";
+      const metadata = `${formatTimestamp(item.receivedAt)} / ${item.symbology ?? "UNKNOWN"}`;
+      const message = item.message
+        ? `<div class="activity-message">${escapeHtml(item.message)}</div>`
+        : "";
+      return `<article class="activity-item">
+        <div class="activity-barcode">${escapeHtml(item.barcode)}</div>
+        <div class="${statusClass}">${status}</div>
+        <div class="activity-meta">${escapeHtml(metadata)}</div>
+        ${message}
+      </article>`;
+    })
+    .join("");
+}
 
-disconnectSessionEl.addEventListener("click", async () => {
-  const pairing = await invoke<PairingInfo>("get_pairing_info");
+async function clearHistory() {
+  if (!window.confirm("Hapus seluruh riwayat scan lokal? Tindakan ini tidak dapat dibatalkan.")) return;
+  try {
+    await invoke("clear_history");
+    renderHistory([]);
+  } catch (error) {
+    activityListEl.innerHTML = `<div class="empty-state">[!] ${escapeHtml(errorMessage(error, "Riwayat gagal dihapus."))}</div>`;
+  }
+}
+
+async function disconnectSession() {
+  const pairing = currentPairing ?? (await invoke<PairingInfo>("get_pairing_info"));
   if (activeChannel) {
     await activeChannel.send({
       type: "broadcast",
@@ -191,13 +264,80 @@ disconnectSessionEl.addEventListener("click", async () => {
   }
   await invoke("reset_pairing_code");
   window.location.reload();
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(date);
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim()) return error;
+  return error instanceof Error ? error.message : fallback;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    };
+    return entities[character];
+  });
+}
+
+document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
+  button.addEventListener("click", () => activateTab(button.dataset.tab as TabName));
+});
+byId<HTMLButtonElement>("save-settings").addEventListener("click", () => void saveSettings());
+byId<HTMLButtonElement>("send-test").addEventListener("click", () => void sendTestScan());
+byId<HTMLButtonElement>("clear-history").addEventListener("click", () => void clearHistory());
+byId<HTMLButtonElement>("copy-code").addEventListener("click", async () => {
+  const pairing = currentPairing ?? (await invoke<PairingInfo>("get_pairing_info"));
+  await navigator.clipboard.writeText(pairing.sessionId);
+  setMessage(summaryMessageEl, `kode.disalin / ${formatPairingCode(pairing.sessionId)}`, "success");
+});
+byId<HTMLButtonElement>("new-code").addEventListener("click", async () => {
+  await invoke("reset_pairing_code");
+  window.location.reload();
+});
+byId<HTMLButtonElement>("disconnect-session").addEventListener("click", () => void disconnectSession());
+autoEnterEl.addEventListener("change", () => {
+  if (autoEnterEl.checked) autoTabEl.checked = false;
+});
+autoTabEl.addEventListener("change", () => {
+  if (autoTabEl.checked) autoEnterEl.checked = false;
 });
 
-void loadPairing();
-void loadStatus();
-void loadSettings();
-void startRealtime();
+void listen("tray-opened", () => {
+  activateTab("summary");
+  void loadStatus(false);
+  void loadHistory();
+});
 
-statusPoll = window.setInterval(() => {
-  void loadStatus();
+async function initialize() {
+  try {
+    await Promise.all([loadPairing(), loadStatus(false), loadSettings(), loadHistory()]);
+    await startRealtime();
+  } catch (error) {
+    statusEl.textContent = "[!] gagal memuat";
+    statusEl.dataset.state = "error";
+    setMessage(summaryMessageEl, errorMessage(error, "Aplikasi gagal dimuat."), "error");
+  }
+}
+
+void initialize();
+
+window.setInterval(() => {
+  void loadStatus(false);
 }, 2000);

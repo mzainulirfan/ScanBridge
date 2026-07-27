@@ -2,6 +2,7 @@ use crate::{
     app::DesktopApp,
     config::AppConfig,
     contracts::{DesktopStatusEvent, ScanAckEvent, ScanEvent},
+    history::HistoryItem,
     qr,
 };
 use serde::Serialize;
@@ -73,8 +74,19 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<AppConfig, String> {
 #[tauri::command]
 pub fn update_settings(settings: AppConfig, state: State<'_, AppState>) -> Result<AppConfig, String> {
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
-    app.config = settings.clone();
-    Ok(settings)
+    app.update_settings(settings)
+}
+
+#[tauri::command]
+pub fn get_history(state: State<'_, AppState>) -> Result<Vec<HistoryItem>, String> {
+    let app = state.app.lock().map_err(|error| error.to_string())?;
+    Ok(app.history())
+}
+
+#[tauri::command]
+pub fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
+    let mut app = state.app.lock().map_err(|error| error.to_string())?;
+    app.clear_history()
 }
 
 #[tauri::command]

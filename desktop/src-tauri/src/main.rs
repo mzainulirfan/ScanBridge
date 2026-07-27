@@ -8,6 +8,7 @@ mod qr;
 mod realtime;
 mod session;
 mod settings;
+mod storage;
 mod supabase;
 mod tray;
 
@@ -17,15 +18,16 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 
 fn main() {
     tauri::Builder::default()
-        .manage(AppState {
-            app: Mutex::new(DesktopApp::new()),
-        })
         .setup(|app| {
+            let data_dir = app.path().app_data_dir()?;
+            app.manage(AppState {
+                app: Mutex::new(DesktopApp::load(data_dir)),
+            });
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("ScanBridge");
             }
@@ -40,6 +42,7 @@ fn main() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => {
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.emit("tray-opened", ());
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
@@ -58,6 +61,8 @@ fn main() {
             commands::get_status,
             commands::get_settings,
             commands::update_settings,
+            commands::get_history,
+            commands::clear_history,
             commands::receive_scan,
             commands::mark_connected,
             commands::mark_disconnected,

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,7 +7,7 @@
     <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
-    <main class="shell">
+    <main class="app-frame">
       <header class="app-header">
         <div class="brand">
           <span class="brand-mark">[SB]</span>
@@ -16,84 +16,120 @@
             <p>desktop relay / v0.1</p>
           </div>
         </div>
-        <span id="status" class="status-badge">loading</span>
+        <span id="status" class="status-badge" data-state="loading">[ ] memuat</span>
       </header>
 
-      <section class="pairing-terminal" aria-labelledby="pairing-heading">
-        <div class="terminal-bar">
-          <h2 id="pairing-heading">pair_device</h2>
-          <span>session.active</span>
-        </div>
-        <p class="terminal-line"><span class="prompt">&gt;</span> Enter this code on your phone</p>
-        <div id="pairing-code" class="pairing-code">--- ---</div>
-        <p id="pairing-url" class="terminal-note"></p>
-        <div class="button-row">
-          <button id="copy-code" class="button-inverse" type="button">[copy code]</button>
-          <button id="new-code" class="button-ghost-dark" type="button">[new code]</button>
-          <button id="disconnect-session" class="button-danger-dark" type="button">[disconnect]</button>
-        </div>
-      </section>
+      <nav class="tab-list" role="tablist" aria-label="Navigasi utama">
+        <button id="tab-summary" class="tab-button active" data-tab="summary" role="tab" aria-selected="true">
+          Ringkasan
+        </button>
+        <button id="tab-output" class="tab-button" data-tab="output" role="tab" aria-selected="false">
+          Output
+        </button>
+        <button id="tab-activity" class="tab-button" data-tab="activity" role="tab" aria-selected="false">
+          Aktivitas
+        </button>
+      </nav>
 
-      <section class="section-block">
-        <div class="section-heading">
-          <h2>Connection</h2>
-          <span>realtime health</span>
-        </div>
-        <dl class="status-grid">
-          <div>
-            <dt>[01] Relay</dt>
-            <dd id="relay-status" class="signal-value">starting</dd>
-          </div>
-          <div>
-            <dt>[02] Mobile</dt>
-            <dd id="mobile-status" class="signal-value">waiting</dd>
-          </div>
-          <div>
-            <dt>[03] Last event</dt>
-            <dd id="last-event">-</dd>
-          </div>
-          <div>
-            <dt>[04] Last scan</dt>
-            <dd id="last-scan">-</dd>
-          </div>
-        </dl>
-      </section>
+      <div class="tab-content">
+        <section id="panel-summary" class="tab-panel active" data-panel="summary" role="tabpanel" aria-labelledby="tab-summary">
+          <section class="pairing-terminal" aria-labelledby="pairing-heading">
+            <div class="terminal-bar">
+              <h2 id="pairing-heading">pair_device</h2>
+              <span id="session-state">session.active</span>
+            </div>
+            <p class="terminal-line"><span class="prompt">&gt;</span> Masukkan kode ini di ponsel</p>
+            <div id="pairing-code" class="pairing-code">--- ---</div>
+            <p id="pairing-url" class="terminal-note">menyiapkan sesi...</p>
+            <div class="button-row">
+              <button id="copy-code" class="button-inverse" type="button">[salin]</button>
+              <button id="new-code" class="button-ghost-dark" type="button">[kode baru]</button>
+              <button id="disconnect-session" class="button-danger-dark" type="button">[putus]</button>
+            </div>
+          </section>
 
-      <section class="section-block">
-        <div class="section-heading">
-          <h2>Output</h2>
-          <span>keyboard settings</span>
-        </div>
-        <div class="toggle-row">
-          <label><input id="auto-enter" type="checkbox" /> <span>Auto Enter</span></label>
-          <label><input id="auto-tab" type="checkbox" /> <span>Auto Tab</span></label>
-        </div>
-        <div class="field-grid">
-          <label>
-            <span>Prefix</span>
-            <input id="prefix" placeholder="none" />
-          </label>
-          <label>
-            <span>Suffix</span>
-            <input id="suffix" placeholder="none" />
-          </label>
-        </div>
-        <button id="save-settings" class="button-primary">[save settings]</button>
-      </section>
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Koneksi</h2>
+              <span>kesehatan realtime</span>
+            </div>
+            <dl class="status-grid">
+              <div>
+                <dt>[01] Relay</dt>
+                <dd id="relay-status" class="signal-value" data-state="loading">memulai</dd>
+              </div>
+              <div>
+                <dt>[02] Mobile</dt>
+                <dd id="mobile-status" class="signal-value" data-state="idle">menunggu</dd>
+              </div>
+              <div>
+                <dt>[03] Event terakhir</dt>
+                <dd id="last-event">-</dd>
+              </div>
+              <div>
+                <dt>[04] Scan terakhir</dt>
+                <dd id="last-scan">-</dd>
+              </div>
+            </dl>
+          </section>
 
-      <section class="section-block test-block">
-        <div class="section-heading">
-          <h2>Test output</h2>
-          <span>active field</span>
-        </div>
-        <div class="test-row">
-          <input id="test-barcode" value="8991234567890" aria-label="Test barcode" />
-          <button id="send-test" class="button-secondary">[type]</button>
-        </div>
-        <p id="ack" class="console-message" aria-live="polite">system.ready</p>
-      </section>
+          <p id="summary-message" class="console-message" data-state="idle" aria-live="polite">system.ready</p>
+        </section>
 
-      <footer>scanbridge://local &middot; keep running in system tray</footer>
+        <section id="panel-output" class="tab-panel" data-panel="output" role="tabpanel" aria-labelledby="tab-output" hidden>
+          <section class="section-block first-block">
+            <div class="section-heading">
+              <h2>Keyboard output</h2>
+              <span>field aktif</span>
+            </div>
+            <div class="toggle-list">
+              <label><input id="auto-enter" type="checkbox" /> <span>Auto Enter setelah barcode</span></label>
+              <label><input id="auto-tab" type="checkbox" /> <span>Auto Tab setelah barcode</span></label>
+              <label><input id="history-enabled" type="checkbox" /> <span>Simpan aktivitas di PC ini</span></label>
+            </div>
+            <div class="field-grid">
+              <label>
+                <span>Prefix</span>
+                <input id="prefix" placeholder="kosong" />
+              </label>
+              <label>
+                <span>Suffix</span>
+                <input id="suffix" placeholder="kosong" />
+              </label>
+            </div>
+            <button id="save-settings" class="button-primary" type="button">[simpan pengaturan]</button>
+          </section>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Uji output</h2>
+              <span>simulasi scan</span>
+            </div>
+            <label class="stacked-field">
+              <span>Barcode uji</span>
+              <input id="test-barcode" value="8991234567890" />
+            </label>
+            <button id="send-test" class="button-secondary" type="button">[ketik ke field aktif]</button>
+          </section>
+
+          <p id="output-message" class="console-message" data-state="idle" aria-live="polite">pengaturan.siap</p>
+        </section>
+
+        <section id="panel-activity" class="tab-panel" data-panel="activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+          <section class="activity-header">
+            <div>
+              <h2>Aktivitas scan</h2>
+              <p id="activity-count">memuat riwayat...</p>
+            </div>
+            <button id="clear-history" class="button-danger" type="button">[hapus semua]</button>
+          </section>
+          <div id="activity-list" class="activity-list" aria-live="polite">
+            <div class="empty-state">[ ] Memuat aktivitas...</div>
+          </div>
+        </section>
+      </div>
+
+      <footer>scanbridge://local &middot; tetap aktif di system tray</footer>
     </main>
   </body>
 </html>
