@@ -1,4 +1,5 @@
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScanResult } from "../lib/scanner";
 
@@ -8,7 +9,26 @@ type UseBarcodeScannerOptions = {
   onScan: (result: ScanResult) => void;
 };
 
-export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarcodeScannerOptions) {
+const SCAN_FORMATS = [
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.QR_CODE
+];
+
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30 }
+  }
+};
+
+export function useBarcodeScanner({ enabled, cooldownMs = 600, onScan }: UseBarcodeScannerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
@@ -44,12 +64,17 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
 
     let cancelled = false;
     if (!readerRef.current) {
-      readerRef.current = new BrowserMultiFormatReader();
+      const hints = new Map<DecodeHintType, BarcodeFormat[]>();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS);
+      readerRef.current = new BrowserMultiFormatReader(hints, {
+        delayBetweenScanAttempts: 30,
+        delayBetweenScanSuccess: 100
+      });
     }
 
     void readerRef.current
-      .decodeFromVideoDevice(
-        undefined,
+      .decodeFromConstraints(
+        CAMERA_CONSTRAINTS,
         video,
         (result: { getText: () => string; getBarcodeFormat: () => { toString: () => string } } | undefined) => {
           if (!result || cancelled) {
