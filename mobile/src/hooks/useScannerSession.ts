@@ -17,6 +17,15 @@ export function useScannerSession() {
   const [realtime] = useState(() => createRealtimeClient());
 
   useEffect(() => {
+    realtime.onEvent?.((event) => {
+      if (event.type === "desktop_status") {
+        setStatus("Desktop ready");
+        setLastAck("Desktop is online. Scanner is ready.");
+      }
+    });
+  }, [realtime]);
+
+  useEffect(() => {
     if (sessionFromUrl) {
       setSessionId(sessionFromUrl);
       setScreen("scanner");

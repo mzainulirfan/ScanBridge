@@ -58,6 +58,17 @@ export async function subscribeDesktopSession(
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         window.clearTimeout(timeout);
+        void channel.send({
+          type: "broadcast",
+          event: "desktop_status",
+          payload: {
+            type: "desktop_status",
+            sessionId,
+            status: "waiting_pairing",
+            deviceCount: 0,
+            timestamp: new Date().toISOString()
+          }
+        });
         void onSubscribed?.();
         resolve();
       }

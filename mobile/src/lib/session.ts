@@ -1,11 +1,10 @@
-export function getSessionFromLocation(search = window.location.search): string | null {
-  const params = new URLSearchParams(search);
+export function getSessionFromLocation(location = window.location): string | null {
+  const params = new URLSearchParams(location.search);
   const session = params.get("session");
-  return session && session.trim().length > 0 ? session : null;
-}
+  if (session && session.trim().length > 0) {
+    return session.trim();
+  }
 
-export function buildConnectUrl(sessionId: string): string {
-  const url = new URL("https://scanbridge.app/connect");
-  url.searchParams.set("session", sessionId);
-  return url.toString();
+  const match = location.pathname.match(/^\/connect\/([^/]+)$/);
+  return match?.[1] ? decodeURIComponent(match[1]).trim() : null;
 }

@@ -8,6 +8,7 @@ export interface RealtimeClient {
   connect(sessionId: string): Promise<void>;
   publish(event: RealtimeEvent): Promise<void>;
   disconnect(): Promise<void>;
+  onEvent?(handler: (event: RealtimeEvent) => void): void;
 }
 
 export function createSupabaseBrowserClient(): SupabaseClient | null {
@@ -44,6 +45,7 @@ export class SupabaseRealtimeClient implements RealtimeClient {
   private supabase: SupabaseClient;
   private channel: RealtimeChannel | null = null;
   private sessionId: string | null = null;
+  private eventHandler: ((event: RealtimeEvent) => void) | null = null;
 
   constructor(supabase: SupabaseClient) {
     this.supabase = supabase;
@@ -56,6 +58,10 @@ export class SupabaseRealtimeClient implements RealtimeClient {
       config: {
         broadcast: { self: true }
       }
+    });
+
+    this.channel.on("broadcast", { event: "desktop_status" }, (payload) => {
+      this.eventHandler?.(payload.payload as RealtimeEvent);
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -96,6 +102,10 @@ export class SupabaseRealtimeClient implements RealtimeClient {
     this.channel = null;
     this.sessionId = null;
   }
+
+  onEvent(handler: (event: RealtimeEvent) => void): void {
+    this.eventHandler = handler;
+  }
 }
 
 export class MockRealtimeClient implements RealtimeClient {
@@ -127,6 +137,10 @@ export class MockRealtimeClient implements RealtimeClient {
   async disconnect(): Promise<void> {
     this.state = "disconnected";
     this.sessionId = null;
+  }
+
+  onEvent(): void {
+    // no-op for local fallback
   }
 }
 
