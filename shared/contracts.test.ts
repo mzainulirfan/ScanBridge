@@ -14,7 +14,7 @@ expectEqual(
 
 expectEqual(
   buildConnectUrl("123"),
-  "https://scanbridge.app/connect?session=123",
+  "https://scanbridge-mobile.vercel.app/connect?session=123",
   "buildConnectUrl"
 );
 

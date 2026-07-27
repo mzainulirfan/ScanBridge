@@ -1,7 +1,7 @@
 use crate::realtime::RealtimeChannel;
 
 pub fn build_pairing_url(session_id: &str) -> String {
-    format!("https://scanbridge.app/connect?session={session_id}")
+    format!("https://scanbridge-mobile.vercel.app/connect?session={session_id}")
 }
 
 pub fn render_placeholder(channel: &RealtimeChannel) -> String {

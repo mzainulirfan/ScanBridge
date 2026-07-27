@@ -2,6 +2,7 @@ node_modules/
 dist/
 target/
 desktop/src-tauri/target/
+desktop/src-tauri/target-codex-check/
 mobile/dist/
 .vite/
 .vercel/
