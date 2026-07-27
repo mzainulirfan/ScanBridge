@@ -14,7 +14,11 @@ mod tray;
 use app::DesktopApp;
 use commands::AppState;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Manager,
+};
 
 fn main() {
     tauri::Builder::default()
@@ -25,6 +29,27 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("ScanBridge");
             }
+            let open_item = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+            let exit_item = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_item, &exit_item])?;
+            let mut tray_builder = TrayIconBuilder::new().menu(&menu).show_menu_on_left_click(true);
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+            tray_builder
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "exit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .build(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

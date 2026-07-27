@@ -1,7 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { defaultWindowIcon } from "@tauri-apps/api/app";
-import { Menu } from "@tauri-apps/api/menu";
-import { TrayIcon } from "@tauri-apps/api/tray";
 import QRCode from "qrcode";
 import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
 import "./styles.css";
@@ -35,7 +32,6 @@ const sendTestEl = document.querySelector<HTMLButtonElement>("#send-test")!;
 const ackEl = document.querySelector<HTMLParagraphElement>("#ack")!;
 let statusPoll: number | null = null;
 let autoHidden = false;
-let tray: TrayIcon | null = null;
 
 async function loadPairing() {
   const pairing = await invoke<PairingInfo>("get_pairing_info");
@@ -102,33 +98,6 @@ async function loadSettings() {
   suffixEl.value = settings.suffix;
 }
 
-async function initTray() {
-  const menu = await Menu.new({
-    items: [
-      {
-        id: "open",
-        text: "Open",
-        action: () => {
-          void invoke("show_main_window");
-        }
-      },
-      {
-        id: "exit",
-        text: "Exit",
-        action: () => {
-          void invoke("exit_app");
-        }
-      }
-    ]
-  });
-
-  tray = await TrayIcon.new({
-    icon: await defaultWindowIcon(),
-    menu,
-    showMenuOnLeftClick: true
-  });
-}
-
 saveSettingsEl.addEventListener("click", () => {
   void invoke("update_settings", {
     settings: {
@@ -159,7 +128,6 @@ sendTestEl.addEventListener("click", async () => {
 void loadPairing();
 void loadStatus();
 void loadSettings();
-void initTray();
 void startRealtime();
 
 statusPoll = window.setInterval(() => {
