@@ -17,3 +17,4 @@ Initial scaffold for the mobile PWA and desktop helper.
 1. Install dependencies per package.
 2. Configure Supabase project and env vars.
 3. Run mobile PWA and desktop helper together.
+4. Deploy `mobile/` to Vercel as the public PWA.
