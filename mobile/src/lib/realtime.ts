@@ -11,20 +11,33 @@ export interface RealtimeClient {
 }
 
 export function createSupabaseBrowserClient(): SupabaseClient | null {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+  const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 
-  if (!url || !anonKey) {
+  if (!url || !anonKey || !isHttpUrl(url)) {
     return null;
   }
 
-  return createClient(url, anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: false
-    }
-  });
+  try {
+    return createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export class SupabaseRealtimeClient implements RealtimeClient {
