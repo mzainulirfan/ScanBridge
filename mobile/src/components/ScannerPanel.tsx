@@ -35,11 +35,10 @@ function ScannerPanel({
         onBarcodeChange={onBarcodeChange}
         onReconnect={onReconnect}
         onReady={() => onSubmitScan(barcode)}
-        onFlashToggle={() => onSubmitScan(barcode)}
       />
-      <section className="panel">
-        <label className="label">ACK</label>
-        <div className="ack-box">{lastAck || "-"}</div>
+      <section className="ack-panel" aria-live="polite">
+        <span>relay_ack</span>
+        <p>{lastAck || "Waiting for first scan."}</p>
       </section>
     </>
   );

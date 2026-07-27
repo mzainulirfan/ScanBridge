@@ -52,6 +52,7 @@ function formatPairingCode(value: string): string {
 async function loadStatus() {
   const status = await invoke<{ status: string }>("get_status");
   statusEl.textContent = status.status;
+  statusEl.dataset.state = status.status === "connected" ? "active" : "idle";
   if (status.status === "connected" && !autoHidden) {
     autoHidden = true;
     await invoke("hide_main_window");
@@ -63,13 +64,16 @@ async function startRealtime() {
   const supabase = createSupabaseDesktopClient();
   if (!supabase) {
     relayStatusEl.textContent = "Missing Supabase env";
+    relayStatusEl.dataset.state = "error";
     mobileStatusEl.textContent = "Not connected";
+    mobileStatusEl.dataset.state = "error";
     ackEl.textContent = "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in desktop/.env.local, then restart desktop.";
     return;
   }
 
   try {
     relayStatusEl.textContent = "Connecting";
+    relayStatusEl.dataset.state = "idle";
     await subscribeDesktopSession(
       supabase,
       pairing.sessionId,
@@ -87,6 +91,7 @@ async function startRealtime() {
       },
       async () => {
         mobileStatusEl.textContent = "Joined";
+        mobileStatusEl.dataset.state = "active";
         lastEventEl.textContent = "client_joined";
         await invoke("mark_connected");
         await loadStatus();
@@ -94,12 +99,15 @@ async function startRealtime() {
       },
       async () => {
         relayStatusEl.textContent = "Subscribed";
-        ackEl.textContent = "Relay ready. Scan this QR from mobile.";
+        relayStatusEl.dataset.state = "active";
+        ackEl.textContent = "relay.ready / enter pairing code on mobile";
       }
     );
   } catch (error) {
     relayStatusEl.textContent = "Failed";
+    relayStatusEl.dataset.state = "error";
     mobileStatusEl.textContent = "Not connected";
+    mobileStatusEl.dataset.state = "error";
     ackEl.textContent = error instanceof Error ? error.message : "Realtime connection failed";
   }
 }
@@ -112,17 +120,22 @@ async function loadSettings() {
   suffixEl.value = settings.suffix;
 }
 
-saveSettingsEl.addEventListener("click", () => {
-  void invoke("update_settings", {
-    settings: {
-      autoEnter: autoEnterEl.checked,
-      autoTab: autoTabEl.checked,
-      prefix: prefixEl.value,
-      suffix: suffixEl.value,
-      historyEnabled: true,
-      historyLimit: 100
-    }
-  });
+saveSettingsEl.addEventListener("click", async () => {
+  try {
+    await invoke("update_settings", {
+      settings: {
+        autoEnter: autoEnterEl.checked,
+        autoTab: autoTabEl.checked,
+        prefix: prefixEl.value,
+        suffix: suffixEl.value,
+        historyEnabled: true,
+        historyLimit: 100
+      }
+    });
+    ackEl.textContent = "settings.saved";
+  } catch (error) {
+    ackEl.textContent = error instanceof Error ? error.message : "settings.save_failed";
+  }
 });
 
 sendTestEl.addEventListener("click", async () => {

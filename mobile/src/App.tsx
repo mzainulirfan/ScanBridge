@@ -27,9 +27,12 @@ function App() {
   return (
     <main className="app-shell">
       <header className="header">
-        <div>
-          <div className="eyebrow">ScanBridge</div>
-          <h1>Turn Your Smartphone into a Barcode Scanner</h1>
+        <div className="brand">
+          <span className="brand-mark">[SB]</span>
+          <div>
+            <h1>ScanBridge</h1>
+            <p>mobile scanner / live relay</p>
+          </div>
         </div>
         <SessionStatusPill state={status} />
       </header>

@@ -3,7 +3,9 @@ type SessionStatusPillProps = {
 };
 
 function SessionStatusPill({ state }: SessionStatusPillProps) {
-  return <div className="status">{state}</div>;
+  const normalizedState = state.toLowerCase();
+  const active = normalizedState === "connected to relay" || normalizedState === "desktop ready";
+  return <div className={active ? "status active" : "status"}>{active ? "[x]" : "[ ]"} {state}</div>;
 }
 
 export default SessionStatusPill;

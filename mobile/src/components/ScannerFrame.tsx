@@ -7,7 +7,6 @@ type ScannerFrameProps = {
   onBarcodeChange: (value: string) => void;
   onReconnect: () => void;
   onReady: () => void;
-  onFlashToggle?: () => void;
 };
 
 function ScannerFrame({
@@ -18,39 +17,52 @@ function ScannerFrame({
   videoRef,
   onBarcodeChange,
   onReconnect,
-  onReady,
-  onFlashToggle
+  onReady
 }: ScannerFrameProps) {
   return (
-    <section className="panel scanner">
+    <section className="scanner">
+      <div className="scanner-heading">
+        <span className="section-label">[camera input]</span>
+        <span className={active ? "live-indicator active" : "live-indicator"}>
+          {active ? "live" : "starting"}
+        </span>
+      </div>
       <div className="camera-frame">
         <video ref={videoRef} className="camera-video" muted playsInline />
-        {!active && <div className="camera-placeholder">Camera preview</div>}
-      </div>
-      <div className="meta-row">
-        <span className="label">Status</span>
-        <span>{status}</span>
+        <div className="scan-guide" aria-hidden="true">
+          <span />
+        </div>
+        {!active && <div className="camera-placeholder">initializing camera...</div>}
       </div>
       {error && (
         <div className="error-box" role="alert">
-          {error}
+          [!] {error}
         </div>
       )}
-      <div className="meta-row">
-        <span className="label">Last scan</span>
-        <span>{lastScan || "-"}</span>
+      <div className="scan-meta">
+        <div>
+          <span>connection</span>
+          <strong>{status}</strong>
+        </div>
+        <div>
+          <span>last_scan</span>
+          <strong>{lastScan || "waiting..."}</strong>
+        </div>
       </div>
-      <label className="label">Last scan payload</label>
-      <input value={lastScan} onChange={(event) => onBarcodeChange(event.target.value)} placeholder="Barcode" />
-      <div className="row">
-        <button className="secondary" onClick={onFlashToggle} type="button">
-          Flash
-        </button>
-        <button className="secondary" onClick={onReconnect} type="button">
-          Reconnect
-        </button>
+      <div className="manual-row">
+        <input
+          aria-label="Manual barcode"
+          value={lastScan}
+          onChange={(event) => onBarcodeChange(event.target.value)}
+          placeholder="manual barcode"
+        />
         <button className="primary" onClick={onReady} type="button">
-          Ready
+          [send]
+        </button>
+      </div>
+      <div className="action-row">
+        <button className="secondary" onClick={onReconnect} type="button">
+          [reconnect relay]
         </button>
       </div>
     </section>

@@ -8,61 +8,91 @@
   </head>
   <body>
     <main class="shell">
-      <header>
-        <div>
-          <div class="eyebrow">ScanBridge</div>
-          <h1>Desktop Helper</h1>
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark">[SB]</span>
+          <div>
+            <h1>ScanBridge</h1>
+            <p>desktop relay / v0.1</p>
+          </div>
         </div>
-        <span id="status" class="pill">Loading</span>
+        <span id="status" class="status-badge">loading</span>
       </header>
 
-      <section class="panel">
-        <h2>Pairing Code</h2>
-        <div id="pairing-code" class="pairing-code">------</div>
-        <p id="pairing-url" class="muted"></p>
+      <section class="pairing-terminal" aria-labelledby="pairing-heading">
+        <div class="terminal-bar">
+          <h2 id="pairing-heading">pair_device</h2>
+          <span>session.active</span>
+        </div>
+        <p class="terminal-line"><span class="prompt">&gt;</span> Enter this code on your phone</p>
+        <div id="pairing-code" class="pairing-code">--- ---</div>
+        <p id="pairing-url" class="terminal-note"></p>
         <div class="button-row">
-          <button id="copy-code" type="button">Copy Code</button>
-          <button id="new-code" type="button">New Code</button>
+          <button id="copy-code" class="button-inverse" type="button">[copy code]</button>
+          <button id="new-code" class="button-ghost-dark" type="button">[new code]</button>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>Connection</h2>
+      <section class="section-block">
+        <div class="section-heading">
+          <h2>Connection</h2>
+          <span>realtime health</span>
+        </div>
         <dl class="status-grid">
           <div>
-            <dt>Relay</dt>
-            <dd id="relay-status">Starting</dd>
+            <dt>[01] Relay</dt>
+            <dd id="relay-status" class="signal-value">starting</dd>
           </div>
           <div>
-            <dt>Mobile</dt>
-            <dd id="mobile-status">Waiting scan QR</dd>
+            <dt>[02] Mobile</dt>
+            <dd id="mobile-status" class="signal-value">waiting</dd>
           </div>
           <div>
-            <dt>Last event</dt>
+            <dt>[03] Last event</dt>
             <dd id="last-event">-</dd>
           </div>
           <div>
-            <dt>Last scan</dt>
+            <dt>[04] Last scan</dt>
             <dd id="last-scan">-</dd>
           </div>
         </dl>
       </section>
 
-      <section class="panel">
-        <h2>Settings</h2>
-        <label><input id="auto-enter" type="checkbox" /> Auto Enter</label>
-        <label><input id="auto-tab" type="checkbox" /> Auto Tab</label>
-        <input id="prefix" placeholder="Prefix" />
-        <input id="suffix" placeholder="Suffix" />
-        <button id="save-settings">Save Settings</button>
+      <section class="section-block">
+        <div class="section-heading">
+          <h2>Output</h2>
+          <span>keyboard settings</span>
+        </div>
+        <div class="toggle-row">
+          <label><input id="auto-enter" type="checkbox" /> <span>Auto Enter</span></label>
+          <label><input id="auto-tab" type="checkbox" /> <span>Auto Tab</span></label>
+        </div>
+        <div class="field-grid">
+          <label>
+            <span>Prefix</span>
+            <input id="prefix" placeholder="none" />
+          </label>
+          <label>
+            <span>Suffix</span>
+            <input id="suffix" placeholder="none" />
+          </label>
+        </div>
+        <button id="save-settings" class="button-primary">[save settings]</button>
       </section>
 
-      <section class="panel">
-        <h2>Test Scan</h2>
-        <input id="test-barcode" value="8991234567890" />
-        <button id="send-test">Type Barcode</button>
-        <p id="ack">-</p>
+      <section class="section-block test-block">
+        <div class="section-heading">
+          <h2>Test output</h2>
+          <span>active field</span>
+        </div>
+        <div class="test-row">
+          <input id="test-barcode" value="8991234567890" aria-label="Test barcode" />
+          <button id="send-test" class="button-secondary">[type]</button>
+        </div>
+        <p id="ack" class="console-message" aria-live="polite">system.ready</p>
       </section>
+
+      <footer>scanbridge://local &middot; keep running in system tray</footer>
     </main>
   </body>
 </html>
