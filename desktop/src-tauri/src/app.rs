@@ -61,4 +61,9 @@ impl DesktopApp {
     pub fn connect(&mut self) {
         self.session.mark_connected();
     }
+
+    pub fn reset_pairing(&mut self) {
+        self.session.reset();
+        self.channel = RealtimeChannel::new(self.session.id());
+    }
 }

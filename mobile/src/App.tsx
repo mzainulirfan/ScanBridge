@@ -1,5 +1,4 @@
 import { useScannerSession } from "./hooks/useScannerSession";
-import ConnectPanel from "./components/ConnectPanel";
 import HomePanel from "./components/HomePanel";
 import ScannerPanel from "./components/ScannerPanel";
 import SessionStatusPill from "./components/SessionStatusPill";
@@ -8,14 +7,13 @@ import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
 function App() {
   const {
     screen,
-    setScreen,
-    sessionId,
-    setSessionId,
+    updateSessionId,
+    connectWithCode,
+    pairingCode,
     status,
     barcode,
     setBarcode,
     lastAck,
-    connectUrl,
     submitScan,
     reconnect
   } = useScannerSession();
@@ -36,14 +34,8 @@ function App() {
         <SessionStatusPill state={status} />
       </header>
 
-      {screen === "home" && <HomePanel connectUrl={connectUrl} onScanPairing={() => setScreen("connect")} />}
-
-      {screen === "connect" && (
-        <ConnectPanel
-          sessionId={sessionId}
-          onSessionChange={setSessionId}
-          onConnect={() => setScreen("scanner")}
-        />
+      {screen === "home" && (
+        <HomePanel pairingCode={pairingCode} onPairingCodeChange={updateSessionId} onConnect={connectWithCode} />
       )}
 
       {screen === "scanner" && (

@@ -54,6 +54,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_pairing_info,
+            commands::reset_pairing_code,
             commands::get_status,
             commands::get_settings,
             commands::update_settings,

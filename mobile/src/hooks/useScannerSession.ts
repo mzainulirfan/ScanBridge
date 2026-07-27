@@ -3,14 +3,20 @@ import { beep, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
 import { getSessionFromLocation } from "../lib/session";
-import { buildConnectUrl, createClientJoinedEvent, createSessionId, normalizeBarcode } from "../shared/contracts";
+import {
+  createClientJoinedEvent,
+  formatPairingCode,
+  isValidPairingCode,
+  normalizeBarcode,
+  normalizePairingCode
+} from "../shared/contracts";
 
 export type ScannerState = "home" | "connect" | "scanner";
 
 export function useScannerSession() {
   const sessionFromUrl = useMemo(() => getSessionFromLocation(), []);
   const [screen, setScreen] = useState<ScannerState>(sessionFromUrl ? "scanner" : "home");
-  const [sessionId, setSessionId] = useState(sessionFromUrl ?? createSessionId());
+  const [sessionId, setSessionId] = useState(sessionFromUrl ? normalizePairingCode(sessionFromUrl) : "");
   const [status, setStatus] = useState<string>(sessionFromUrl ? "Connecting" : "Ready to pair");
   const [barcode, setBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
@@ -27,13 +33,19 @@ export function useScannerSession() {
 
   useEffect(() => {
     if (sessionFromUrl) {
-      setSessionId(sessionFromUrl);
+      setSessionId(normalizePairingCode(sessionFromUrl));
       setScreen("scanner");
     }
   }, [sessionFromUrl]);
 
   useEffect(() => {
     if (screen === "scanner") {
+      if (!isValidPairingCode(sessionId)) {
+        setStatus("Invalid code");
+        setLastAck("Enter the 6-character code shown on desktop.");
+        setScreen("home");
+        return;
+      }
       setStatus("Connecting");
       void realtime
         .connect(sessionId)
@@ -49,7 +61,18 @@ export function useScannerSession() {
     }
   }, [realtime, screen, sessionId]);
 
-  const connectUrl = useMemo(() => buildConnectUrl(sessionId), [sessionId]);
+  const updateSessionId = useCallback((value: string) => {
+    setSessionId(normalizePairingCode(value).slice(0, 6));
+  }, []);
+
+  const connectWithCode = useCallback(() => {
+    if (!isValidPairingCode(sessionId)) {
+      setStatus("Invalid code");
+      setLastAck("Enter the 6-character code shown on desktop.");
+      return;
+    }
+    setScreen("scanner");
+  }, [sessionId]);
 
   const submitScan = useCallback(
     async (value: string) => {
@@ -84,13 +107,15 @@ export function useScannerSession() {
     setScreen,
     sessionId,
     setSessionId,
+    updateSessionId,
+    connectWithCode,
+    pairingCode: formatPairingCode(sessionId),
     status,
     setStatus,
     barcode,
     setBarcode,
     lastAck,
     setLastAck,
-    connectUrl,
     submitScan,
     reconnect
   };

@@ -33,6 +33,18 @@ pub fn get_pairing_info(state: State<'_, AppState>) -> Result<PairingInfo, Strin
 }
 
 #[tauri::command]
+pub fn reset_pairing_code(state: State<'_, AppState>) -> Result<PairingInfo, String> {
+    let mut app = state.app.lock().map_err(|error| error.to_string())?;
+    app.reset_pairing();
+    Ok(PairingInfo {
+        session_id: app.session.id(),
+        channel_name: app.channel.channel_name.clone(),
+        pairing_url: qr::build_pairing_url(&app.session.id()),
+        qr_placeholder: qr::render_placeholder(&app.channel),
+    })
+}
+
+#[tauri::command]
 pub fn get_status(state: State<'_, AppState>) -> Result<DesktopStatusEvent, String> {
     let app = state.app.lock().map_err(|error| error.to_string())?;
     Ok(app.status())

@@ -53,13 +53,26 @@ export function isScanEvent(value: unknown): value is ScanEvent {
 }
 
 export function buildSessionChannel(sessionId: string): string {
-  return `scanbridge:session:${sessionId}`;
+  return `scanbridge:session:${normalizePairingCode(sessionId)}`;
 }
 
 export function buildConnectUrl(sessionId: string): string {
   const url = new URL("https://scanbridge-mobile.vercel.app/connect");
-  url.searchParams.set("session", sessionId);
+  url.searchParams.set("session", normalizePairingCode(sessionId));
   return url.toString();
+}
+
+export function normalizePairingCode(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+export function formatPairingCode(value: string): string {
+  const clean = normalizePairingCode(value).slice(0, 6);
+  return clean.length > 3 ? `${clean.slice(0, 3)} ${clean.slice(3)}` : clean;
+}
+
+export function isValidPairingCode(value: string): boolean {
+  return normalizePairingCode(value).length === 6;
 }
 
 export function normalizeBarcode(barcode: string): string {

@@ -113,32 +113,6 @@ button {
   border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
-.qr-frame {
-  aspect-ratio: 1;
-  border-radius: 12px;
-  border: 1px solid rgba(96, 165, 250, 0.28);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(17, 24, 39, 0.92));
-  display: grid;
-  place-items: center;
-}
-
-.qr-inner {
-  text-align: center;
-  color: #cbd5e1;
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-}
-
-.qr-inner span {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.qr-inner small {
-  overflow-wrap: anywhere;
-}
-
 .camera-placeholder {
   position: absolute;
   color: #94a3b8;
@@ -168,11 +142,10 @@ button {
   gap: 12px;
 }
 
-.link-box {
-  padding: 12px;
-  border-radius: 10px;
-  background: rgba(148, 163, 184, 0.08);
-  border: 1px dashed rgba(148, 163, 184, 0.2);
-  overflow-wrap: anywhere;
-  color: #cbd5e1;
+#pairing-code {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }

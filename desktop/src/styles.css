@@ -86,13 +86,26 @@ input {
   padding: 10px;
 }
 
-#qr {
-  width: 240px;
-  height: 240px;
-  justify-self: center;
+.pairing-code {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 18px 12px;
   border-radius: 8px;
-  background: #f8fafc;
-  padding: 8px;
+  background: rgba(56, 189, 248, 0.14);
+  color: #e0f2fe;
+}
+
+.muted {
+  margin: 0;
+  color: #94a3b8;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 button {

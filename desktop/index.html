@@ -17,9 +17,13 @@
       </header>
 
       <section class="panel">
-        <h2>QR Pairing</h2>
-        <canvas id="qr"></canvas>
-        <p id="pairing-url"></p>
+        <h2>Pairing Code</h2>
+        <div id="pairing-code" class="pairing-code">------</div>
+        <p id="pairing-url" class="muted"></p>
+        <div class="button-row">
+          <button id="copy-code" type="button">Copy Code</button>
+          <button id="new-code" type="button">New Code</button>
+        </div>
       </section>
 
       <section class="panel">

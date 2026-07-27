@@ -1,21 +1,26 @@
 type HomePanelProps = {
-  connectUrl: string;
-  onScanPairing: () => void;
+  pairingCode: string;
+  onPairingCodeChange: (value: string) => void;
+  onConnect: () => void;
 };
 
-function HomePanel({ connectUrl, onScanPairing }: HomePanelProps) {
+function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelProps) {
   return (
     <section className="panel">
-      <p className="text">Desktop session siap. Buka link pairing dari QR, lalu scanner akan langsung aktif di sini.</p>
-      <div className="qr-frame" aria-label="QR pairing placeholder">
-        <div className="qr-inner">
-          <span>QR Pairing</span>
-          <small>{connectUrl}</small>
-        </div>
-      </div>
-      <div className="link-box">{connectUrl}</div>
-      <button className="primary" onClick={onScanPairing} type="button">
-        Scan QR Pairing
+      <label className="label" htmlFor="pairing-code">
+        Pairing Code
+      </label>
+      <input
+        id="pairing-code"
+        inputMode="text"
+        autoCapitalize="characters"
+        autoComplete="one-time-code"
+        placeholder="123 456"
+        value={pairingCode}
+        onChange={(event) => onPairingCodeChange(event.target.value)}
+      />
+      <button className="primary" onClick={onConnect} type="button">
+        Connect
       </button>
     </section>
   );

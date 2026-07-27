@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import QRCode from "qrcode";
 import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
 import "./styles.css";
 
@@ -24,8 +23,10 @@ const relayStatusEl = document.querySelector<HTMLElement>("#relay-status")!;
 const mobileStatusEl = document.querySelector<HTMLElement>("#mobile-status")!;
 const lastEventEl = document.querySelector<HTMLElement>("#last-event")!;
 const lastScanEl = document.querySelector<HTMLElement>("#last-scan")!;
-const qrEl = document.querySelector<HTMLCanvasElement>("#qr")!;
+const pairingCodeEl = document.querySelector<HTMLElement>("#pairing-code")!;
 const pairingUrlEl = document.querySelector<HTMLParagraphElement>("#pairing-url")!;
+const copyCodeEl = document.querySelector<HTMLButtonElement>("#copy-code")!;
+const newCodeEl = document.querySelector<HTMLButtonElement>("#new-code")!;
 const autoEnterEl = document.querySelector<HTMLInputElement>("#auto-enter")!;
 const autoTabEl = document.querySelector<HTMLInputElement>("#auto-tab")!;
 const prefixEl = document.querySelector<HTMLInputElement>("#prefix")!;
@@ -39,15 +40,13 @@ let autoHidden = false;
 
 async function loadPairing() {
   const pairing = await invoke<PairingInfo>("get_pairing_info");
-  await QRCode.toCanvas(qrEl, pairing.pairingUrl, {
-    width: 240,
-    margin: 2,
-    color: {
-      dark: "#0f172a",
-      light: "#f8fafc"
-    }
-  });
-  pairingUrlEl.textContent = pairing.pairingUrl;
+  pairingCodeEl.textContent = formatPairingCode(pairing.sessionId);
+  pairingUrlEl.textContent = `Enter this code on mobile: ${formatPairingCode(pairing.sessionId)}`;
+}
+
+function formatPairingCode(value: string): string {
+  const clean = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 6);
+  return clean.length > 3 ? `${clean.slice(0, 3)} ${clean.slice(3)}` : clean;
 }
 
 async function loadStatus() {
@@ -138,6 +137,17 @@ sendTestEl.addEventListener("click", async () => {
     }
   });
   ackEl.textContent = `${ack.success ? "OK" : "Failed"}: ${ack.message}`;
+});
+
+copyCodeEl.addEventListener("click", async () => {
+  const pairing = await invoke<PairingInfo>("get_pairing_info");
+  await navigator.clipboard.writeText(pairing.sessionId);
+  ackEl.textContent = `Copied code ${formatPairingCode(pairing.sessionId)}`;
+});
+
+newCodeEl.addEventListener("click", async () => {
+  await invoke("reset_pairing_code");
+  window.location.reload();
 });
 
 void loadPairing();
