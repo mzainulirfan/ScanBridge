@@ -109,13 +109,13 @@ h1 {
 
 .success-toast {
   position: fixed;
-  right: 16px;
+  right: 64px;
   top: 78px;
   left: 16px;
   z-index: 10;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   max-width: 420px;
   min-height: 44px;
