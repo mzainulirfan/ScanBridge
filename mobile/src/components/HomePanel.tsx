@@ -9,12 +9,12 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelPro
     <>
       <section className="intro">
         <span className="section-label">[pair device]</span>
-        <h2>Your phone is the scanner.</h2>
-        <p>Enter the six-character code shown in ScanBridge Desktop.</p>
+        <h2>Ponsel Anda menjadi scanner.</h2>
+        <p>Masukkan kode 6 karakter dari ScanBridge Desktop.</p>
       </section>
       <section className="pairing-panel">
         <label className="label" htmlFor="pairing-code">
-          pairing_code
+          kode pairing
         </label>
         <input
           id="pairing-code"
@@ -29,7 +29,7 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelPro
           [connect]
         </button>
       </section>
-      <p className="privacy-note">[+] Direct realtime relay &middot; no barcode storage</p>
+      <p className="privacy-note">[+] Relay realtime langsung &middot; barcode tidak disimpan</p>
     </>
   );
 }

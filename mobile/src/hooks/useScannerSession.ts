@@ -31,8 +31,9 @@ export function useScannerSession() {
   }, [sessionFromUrl]);
   const [screen, setScreen] = useState<ScannerState>(initialSessionId ? "scanner" : "home");
   const [sessionId, setSessionId] = useState(initialSessionId);
-  const [status, setStatus] = useState<string>(initialSessionId ? "Connecting" : "Ready to pair");
+  const [status, setStatus] = useState<string>(initialSessionId ? "Menghubungkan" : "Siap pairing");
   const [barcode, setBarcode] = useState("");
+  const [manualBarcode, setManualBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
   const [realtime] = useState(() => createRealtimeClient());
 
@@ -51,7 +52,7 @@ export function useScannerSession() {
       setSessionId("");
       setBarcode("");
       setLastAck("");
-      setStatus("Ready to pair");
+      setStatus("Siap pairing");
       setScreen("home");
     },
     [realtime, sessionId]
@@ -64,8 +65,8 @@ export function useScannerSession() {
           void disconnect(false);
           return;
         }
-        setStatus("Desktop ready");
-        setLastAck("Desktop is online. Scanner is ready.");
+        setStatus("Desktop siap");
+        setLastAck("Desktop online. Scanner siap digunakan.");
       }
     });
   }, [disconnect, realtime]);
@@ -74,24 +75,24 @@ export function useScannerSession() {
     if (screen === "scanner") {
       let cancelled = false;
       if (!isValidPairingCode(sessionId)) {
-        setStatus("Invalid code");
-        setLastAck("Enter the 6-character code shown on desktop.");
+        setStatus("Kode tidak valid");
+        setLastAck("Masukkan kode 6 karakter dari ScanBridge Desktop.");
         setScreen("home");
         return;
       }
-      setStatus("Connecting");
+      setStatus("Menghubungkan");
       void realtime
         .connect(sessionId)
         .then(() => realtime.publish(createClientJoinedEvent(sessionId)))
         .then(() => {
           if (cancelled) return;
-          setStatus("Connected to relay");
-          setLastAck("Pairing signal sent. Desktop should show Mobile: Joined.");
+          setStatus("Terhubung ke relay");
+          setLastAck("Sinyal pairing terkirim. Desktop seharusnya menampilkan mobile terhubung.");
         })
         .catch(() => {
           if (cancelled) return;
-          setStatus("Disconnected");
-          setLastAck("Realtime failed. Check Supabase env and internet connection.");
+          setStatus("Terputus");
+          setLastAck("Koneksi gagal. Periksa internet lalu coba sambungkan ulang.");
         });
 
       return () => {
@@ -106,8 +107,8 @@ export function useScannerSession() {
 
   const connectWithCode = useCallback(() => {
     if (!isValidPairingCode(sessionId)) {
-      setStatus("Invalid code");
-      setLastAck("Enter the 6-character code shown on desktop.");
+      setStatus("Kode tidak valid");
+      setLastAck("Masukkan kode 6 karakter dari ScanBridge Desktop.");
       return;
     }
     storePairingCode(sessionId);
@@ -118,15 +119,15 @@ export function useScannerSession() {
     async (value: string) => {
       const clean = normalizeBarcode(value);
       if (!isValidScanValue(clean)) {
-        setLastAck("Barcode kosong");
+        setLastAck("Barcode masih kosong.");
         return;
       }
 
       const event = createScanEvent(sessionId, { barcode: clean });
       await realtime.publish(event);
       setBarcode(clean);
-      setLastAck(`Published ${clean}`);
-      setStatus("Connected to relay");
+      setLastAck(`Barcode terkirim: ${clean}`);
+      setStatus("Terhubung ke relay");
       scannerSuccessSound();
       vibrate();
     },
@@ -134,12 +135,17 @@ export function useScannerSession() {
   );
 
   const reconnect = useCallback(async () => {
-    setStatus("Reconnecting");
-    await realtime.disconnect();
-    await realtime.connect(sessionId);
-    await realtime.publish(createClientJoinedEvent(sessionId));
-    setStatus("Connected to relay");
-    setLastAck("Pairing signal sent. Desktop should show Mobile: Joined.");
+    setStatus("Menyambungkan ulang");
+    try {
+      await realtime.disconnect();
+      await realtime.connect(sessionId);
+      await realtime.publish(createClientJoinedEvent(sessionId));
+      setStatus("Terhubung ke relay");
+      setLastAck("Sinyal pairing terkirim. Desktop seharusnya menampilkan mobile terhubung.");
+    } catch {
+      setStatus("Terputus");
+      setLastAck("Sambung ulang gagal. Periksa internet lalu coba lagi.");
+    }
   }, [realtime, sessionId]);
 
   return {
@@ -154,6 +160,8 @@ export function useScannerSession() {
     setStatus,
     barcode,
     setBarcode,
+    manualBarcode,
+    setManualBarcode,
     lastAck,
     setLastAck,
     submitScan,

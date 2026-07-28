@@ -29,6 +29,10 @@ body {
   overflow: hidden;
 }
 
+.app-shell:not(.scanner-mode) {
+  overflow-y: auto;
+}
+
 .header,
 .brand,
 .scanner-heading,
@@ -84,6 +88,23 @@ h1 {
 .status.active {
   color: #176b31;
   border-color: rgba(48, 209, 88, 0.45);
+}
+
+.install-banner {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 0, 0, 0.18);
+  background: #f1eeee;
+  color: #424245;
+  font-size: 12px;
 }
 
 .intro {

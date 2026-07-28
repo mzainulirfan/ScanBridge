@@ -1,6 +1,7 @@
 type ScannerFrameProps = {
   status: string;
   lastScan: string;
+  manualBarcode: string;
   active: boolean;
   error?: string | null;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -13,6 +14,7 @@ type ScannerFrameProps = {
 function ScannerFrame({
   status,
   lastScan,
+  manualBarcode,
   active,
   error,
   videoRef,
@@ -24,50 +26,56 @@ function ScannerFrame({
   return (
     <section className="scanner">
       <div className="scanner-heading">
-        <span className="section-label">[camera input]</span>
+        <span className="section-label">[kamera scanner]</span>
         <span className={active ? "live-indicator active" : "live-indicator"}>
-          {active ? "live" : "starting"}
+          {active ? "aktif" : "menyiapkan"}
         </span>
       </div>
       <div className="camera-frame">
-        <video ref={videoRef} className="camera-video" muted playsInline />
+        <video
+          ref={videoRef}
+          className="camera-video"
+          muted
+          playsInline
+          aria-label="Pratinjau kamera scanner barcode"
+        />
         <div className="scan-guide" aria-hidden="true">
           <span />
         </div>
-        {!active && <div className="camera-placeholder">initializing camera...</div>}
+        {!active && <div className="camera-placeholder">Meminta akses kamera...</div>}
       </div>
       {error && (
         <div className="error-box" role="alert">
-          [!] {error}
+          [!] Kamera belum siap: {error}
         </div>
       )}
       <div className="scan-meta">
         <div>
-          <span>connection</span>
+          <span>koneksi</span>
           <strong>{status}</strong>
         </div>
         <div>
-          <span>last_scan</span>
-          <strong>{lastScan || "waiting..."}</strong>
+          <span>scan terakhir</span>
+          <strong>{lastScan || "menunggu..."}</strong>
         </div>
       </div>
       <div className="manual-row">
         <input
-          aria-label="Manual barcode"
-          value={lastScan}
+          aria-label="Barcode manual"
+          value={manualBarcode}
           onChange={(event) => onBarcodeChange(event.target.value)}
-          placeholder="manual barcode"
+          placeholder="barcode manual"
         />
         <button className="primary" onClick={onReady} type="button">
-          [send]
+          [kirim]
         </button>
       </div>
       <div className="action-row">
         <button className="secondary" onClick={onReconnect} type="button">
-          [reconnect]
+          [sambungkan ulang]
         </button>
         <button className="danger" onClick={onDisconnect} type="button">
-          [disconnect]
+          [putuskan]
         </button>
       </div>
     </section>

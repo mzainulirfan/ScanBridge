@@ -1,8 +1,14 @@
+import { useEffect, useState } from "react";
 import { useScannerSession } from "./hooks/useScannerSession";
 import HomePanel from "./components/HomePanel";
 import ScannerPanel from "./components/ScannerPanel";
 import SessionStatusPill from "./components/SessionStatusPill";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
 
 function App() {
   const {
@@ -12,12 +18,28 @@ function App() {
     pairingCode,
     status,
     barcode,
+    manualBarcode,
     setBarcode,
+    setManualBarcode,
     lastAck,
     submitScan,
     reconnect,
     disconnect
   } = useScannerSession();
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  useEffect(() => {
+    const handleInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
+  }, []);
+  const install = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  };
   const scanner = useBarcodeScanner({
     enabled: screen === "scanner",
     onScan: (result) => {
@@ -37,6 +59,14 @@ function App() {
         </div>
         <SessionStatusPill state={status} />
       </header>
+      {installPrompt && screen === "home" && (
+        <aside className="install-banner">
+          <span>Pasang ScanBridge di layar utama.</span>
+          <button className="primary" onClick={() => void install()} type="button">
+            [pasang]
+          </button>
+        </aside>
+      )}
 
       {screen === "home" && (
         <HomePanel pairingCode={pairingCode} onPairingCodeChange={updateSessionId} onConnect={connectWithCode} />
@@ -46,11 +76,12 @@ function App() {
         <ScannerPanel
           status={status}
           barcode={barcode}
+          manualBarcode={manualBarcode}
           lastAck={lastAck}
           active={scanner.active}
           error={scanner.error}
           videoRef={scanner.videoRef}
-          onBarcodeChange={setBarcode}
+          onBarcodeChange={setManualBarcode}
           onReconnect={() => {
             void reconnect();
           }}
