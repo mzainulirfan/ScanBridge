@@ -182,20 +182,22 @@ export function useScannerSession() {
     setSessionId(value.replace(/\D/g, "").slice(0, 6));
   }, []);
 
-  const connectWithCode = useCallback(() => {
+  const connectWithCode = useCallback((value?: string) => {
+    const nextSessionId = value?.replace(/\D/g, "").slice(0, 6) || sessionId;
     if (!realtime.configured) {
       setStatus("Konfigurasi belum siap");
       setLastAck("Supabase belum dikonfigurasi. Hubungi administrator aplikasi.");
       showToast("Relay belum dikonfigurasi");
       return;
     }
-    if (!isValidPairingCode(sessionId)) {
+    if (!isValidPairingCode(nextSessionId)) {
       setStatus("Kode tidak valid");
       setLastAck("Masukkan kode 6 karakter dari ScanBridge Desktop.");
       return;
     }
     prepareScannerSound();
-    storePairingCode(sessionId);
+    setSessionId(nextSessionId);
+    storePairingCode(nextSessionId);
     setScreen("scanner");
   }, [realtime.configured, sessionId, showToast]);
 

@@ -1,7 +1,7 @@
 type HomePanelProps = {
   pairingCode: string;
   onPairingCodeChange: (value: string) => void;
-  onConnect: () => void;
+  onConnect: (value?: string) => void;
 };
 
 function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelProps) {
@@ -9,6 +9,8 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelPro
 
   useEffect(() => {
     pairingInputRef.current?.focus();
+    const focusTimer = window.setTimeout(() => pairingInputRef.current?.focus(), 120);
+    return () => window.clearTimeout(focusTimer);
   }, []);
 
   return (
@@ -32,20 +34,25 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelPro
           <input
             id="pairing-code"
             ref={pairingInputRef}
+            autoFocus
             inputMode="numeric"
             pattern="[0-9]*"
             autoCapitalize="off"
             autoComplete="one-time-code"
             maxLength={6}
             value={pairingCode}
-            onChange={(event) => onPairingCodeChange(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value.replace(/\D/g, "").slice(0, 6);
+              onPairingCodeChange(value);
+              if (value.length === 6) onConnect(value);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter") onConnect();
             }}
             aria-label="Kode pairing 6 digit"
           />
         </div>
-        <button className="primary" onClick={onConnect} type="button">
+        <button className="primary" onClick={() => onConnect()} type="button">
           [connect]
         </button>
       </section>
