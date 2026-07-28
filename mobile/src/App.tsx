@@ -88,6 +88,11 @@ function App() {
           onReconnect={() => {
             void reconnect();
           }}
+          onResetPairing={() => {
+            if (window.confirm("Reset kode pairing dan kembali ke halaman pairing?")) {
+              void disconnect();
+            }
+          }}
           onDisconnect={() => {
             void disconnect();
           }}

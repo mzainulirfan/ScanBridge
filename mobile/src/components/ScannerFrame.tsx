@@ -10,6 +10,7 @@ type ScannerFrameProps = {
   onBarcodeChange: (value: string) => void;
   onTorchToggle: () => void;
   onReconnect: () => void;
+  onResetPairing: () => void;
   onDisconnect: () => void;
   onReady: () => void;
 };
@@ -26,6 +27,7 @@ function ScannerFrame({
   onBarcodeChange,
   onTorchToggle,
   onReconnect,
+  onResetPairing,
   onDisconnect,
   onReady
 }: ScannerFrameProps) {
@@ -131,6 +133,9 @@ function ScannerFrame({
       <div className="action-row">
         <button className="secondary" onClick={onReconnect} type="button">
           [sambungkan ulang]
+        </button>
+        <button className="secondary" onClick={onResetPairing} type="button">
+          [reset kode]
         </button>
         <button className="danger" onClick={onDisconnect} type="button">
           [putuskan]

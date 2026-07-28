@@ -13,6 +13,7 @@ type ScannerPanelProps = {
   onBarcodeChange: (value: string) => void;
   onTorchToggle: () => void;
   onReconnect: () => void;
+  onResetPairing: () => void;
   onDisconnect: () => void;
   onSubmitScan: (value: string) => Promise<boolean>;
 };
@@ -29,6 +30,7 @@ function ScannerPanel({
   onBarcodeChange,
   onTorchToggle,
   onReconnect,
+  onResetPairing,
   onDisconnect,
   onSubmitScan
 }: ScannerPanelProps) {
@@ -46,6 +48,7 @@ function ScannerPanel({
         onBarcodeChange={onBarcodeChange}
         onTorchToggle={onTorchToggle}
         onReconnect={onReconnect}
+        onResetPairing={onResetPairing}
         onDisconnect={onDisconnect}
         onReady={() => {
           void onSubmitScan(manualBarcode).then((success) => {
