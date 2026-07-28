@@ -70,7 +70,16 @@ function App() {
       )}
 
       {screen === "home" && (
-        <HomePanel pairingCode={pairingCode} onPairingCodeChange={updateSessionId} onConnect={connectWithCode} />
+        <HomePanel
+          pairingCode={pairingCode}
+          onPairingCodeChange={updateSessionId}
+          onConnect={connectWithCode}
+          onResetPairing={() => {
+            if (window.confirm("Hapus kode pairing tersimpan?")) {
+              void disconnect();
+            }
+          }}
+        />
       )}
 
       {screen === "scanner" && (

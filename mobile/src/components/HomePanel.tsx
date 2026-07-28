@@ -2,9 +2,10 @@ type HomePanelProps = {
   pairingCode: string;
   onPairingCodeChange: (value: string) => void;
   onConnect: (value?: string) => void;
+  onResetPairing: () => void;
 };
 
-function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelProps) {
+function HomePanel({ pairingCode, onPairingCodeChange, onConnect, onResetPairing }: HomePanelProps) {
   const pairingInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,9 +53,16 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelPro
             aria-label="Kode pairing 6 digit"
           />
         </div>
-        <button className="primary" onClick={() => onConnect()} type="button">
-          [connect]
-        </button>
+        <div className="pairing-actions">
+          <button className="primary" onClick={() => onConnect()} type="button">
+            [connect]
+          </button>
+          {pairingCode && (
+            <button className="secondary" onClick={onResetPairing} type="button">
+              [reset kode]
+            </button>
+          )}
+        </div>
       </section>
       <p className="privacy-note">[+] Relay realtime langsung &middot; barcode tidak disimpan</p>
     </>

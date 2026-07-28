@@ -234,6 +234,12 @@ button:disabled {
   color: #201d1d;
 }
 
+.pairing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .privacy-note {
   color: #646262;
   font-size: 12px;
