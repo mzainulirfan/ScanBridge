@@ -36,8 +36,25 @@ export function useScannerSession() {
   const [barcode, setBarcode] = useState("");
   const [manualBarcode, setManualBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
+  const [toast, setToast] = useState("");
   const [realtime] = useState(() => createRealtimeClient());
   const lastDesktopSeenAt = useRef(0);
+  const toastTimer = useRef<number | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => {
+      setToast("");
+      toastTimer.current = null;
+    }, 1800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   const disconnect = useCallback(
     async (notifyDesktop = true) => {
@@ -147,10 +164,11 @@ export function useScannerSession() {
       setBarcode(clean);
       setLastAck(`Barcode terkirim: ${clean}`);
       setStatus("Terhubung ke relay");
+      showToast("Barcode berhasil dikirim");
       scannerSuccessSound();
       vibrate();
     },
-    [realtime, sessionId]
+    [realtime, sessionId, showToast]
   );
 
   const reconnect = useCallback(async () => {
@@ -182,6 +200,7 @@ export function useScannerSession() {
     manualBarcode,
     setManualBarcode,
     lastAck,
+    toast,
     setLastAck,
     submitScan,
     reconnect,

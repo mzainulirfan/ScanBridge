@@ -22,6 +22,7 @@ function App() {
     setBarcode,
     setManualBarcode,
     lastAck,
+    toast,
     submitScan,
     reconnect,
     disconnect
@@ -94,6 +95,12 @@ function App() {
             void submitScan(value);
           }}
         />
+      )}
+      {toast && (
+        <div className="success-toast" role="status" aria-live="polite">
+          <span aria-hidden="true">[x]</span>
+          {toast}
+        </div>
       )}
     </main>
   );
