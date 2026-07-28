@@ -22,6 +22,7 @@ import {
 
 export type ScannerState = "home" | "connect" | "scanner";
 const DESKTOP_HEARTBEAT_TIMEOUT_MS = 30000;
+const PAIRING_CONFIRM_TIMEOUT_MS = 10000;
 const SCAN_ACK_TIMEOUT_MS = 5000;
 
 export function useScannerSession() {
@@ -43,6 +44,7 @@ export function useScannerSession() {
   const [realtime] = useState(() => createRealtimeClient());
   const clientId = useRef(createSessionId());
   const lastDesktopSeenAt = useRef(0);
+  const pairingTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const pendingScans = useRef(
     new Map<string, { resolve: (ack: ScanAckEvent) => void; reject: (error: Error) => void; timer: number }>()
@@ -60,6 +62,7 @@ export function useScannerSession() {
   useEffect(() => {
     return () => {
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+      if (pairingTimer.current !== null) window.clearTimeout(pairingTimer.current);
       pendingScans.current.forEach(({ reject, timer }) => {
         window.clearTimeout(timer);
         reject(new Error("Scanner ditutup"));
@@ -84,6 +87,10 @@ export function useScannerSession() {
       setBarcode("");
       setLastAck("");
       lastDesktopSeenAt.current = 0;
+      if (pairingTimer.current !== null) {
+        window.clearTimeout(pairingTimer.current);
+        pairingTimer.current = null;
+      }
       setStatus("Siap pairing");
       setScreen("home");
     },
@@ -97,6 +104,11 @@ export function useScannerSession() {
         if (event.status === "idle") {
           void disconnect(false);
           return;
+        }
+        if (event.status !== "connected") return;
+        if (pairingTimer.current !== null) {
+          window.clearTimeout(pairingTimer.current);
+          pairingTimer.current = null;
         }
         setStatus("Desktop siap");
         setLastAck("Desktop online. Scanner siap digunakan.");
@@ -155,6 +167,14 @@ export function useScannerSession() {
       }
       setStatus("Menghubungkan");
       lastDesktopSeenAt.current = 0;
+      if (pairingTimer.current !== null) window.clearTimeout(pairingTimer.current);
+      pairingTimer.current = window.setTimeout(() => {
+        pairingTimer.current = null;
+        void disconnect(false).then(() => {
+          setStatus("Kode tidak cocok");
+          setLastAck("Kode pairing tidak ditemukan di desktop. Periksa kembali 6 angka.");
+        });
+      }, PAIRING_CONFIRM_TIMEOUT_MS);
       void realtime
         .connect(sessionId)
         .then(async () => {
@@ -168,6 +188,10 @@ export function useScannerSession() {
         })
         .catch(() => {
           if (cancelled) return;
+          if (pairingTimer.current !== null) {
+            window.clearTimeout(pairingTimer.current);
+            pairingTimer.current = null;
+          }
           setStatus("Terputus");
           setLastAck("Koneksi gagal. Periksa internet lalu coba sambungkan ulang.");
         });
