@@ -12,18 +12,21 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: #fdfcfc;
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   display: grid;
   align-content: start;
-  gap: 24px;
-  padding: 20px;
+  gap: 16px;
+  padding: 12px;
   max-width: 680px;
   margin: 0 auto;
+  overflow: hidden;
 }
 
 .header,
@@ -85,13 +88,13 @@ h1 {
 
 .intro {
   display: grid;
-  gap: 12px;
-  padding-top: 32px;
+  gap: 8px;
+  padding-top: 12px;
 }
 
 .intro h2 {
   max-width: 520px;
-  font-size: 32px;
+  font-size: 26px;
   line-height: 1.25;
 }
 
@@ -108,8 +111,8 @@ h1 {
 
 .pairing-panel {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  gap: 10px;
+  padding: 16px;
   background: #201d1d;
   color: #fdfcfc;
 }
@@ -179,8 +182,15 @@ button {
 }
 
 .scanner {
+  min-height: 0;
   display: grid;
-  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+}
+
+.scanner-mode {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
 .scanner-heading {
@@ -206,8 +216,9 @@ button {
 
 .camera-frame {
   position: relative;
-  aspect-ratio: 3 / 4;
-  max-height: 58vh;
+  min-height: 0;
+  height: 100%;
+  aspect-ratio: auto;
   border-radius: 0;
   overflow: hidden;
   background: #201d1d;
@@ -230,7 +241,11 @@ button {
 
 .scan-guide {
   position: absolute;
-  inset: 24% 8%;
+  top: 30%;
+  right: 8%;
+  bottom: 30%;
+  left: 8%;
+  box-sizing: border-box;
   border: 1px solid rgba(253, 252, 252, 0.75);
   pointer-events: none;
 }
@@ -256,14 +271,14 @@ button {
 .scan-guide span {
   position: absolute;
   top: 50%;
-  left: 7%;
-  right: 7%;
+  left: 0;
+  right: 0;
   height: 1px;
   background: #ff3b30;
 }
 
 .error-box {
-  padding: 10px 12px;
+  padding: 7px 10px;
   border-left: 2px solid #ff3b30;
   background: #fff1f0;
   color: #a50011;
@@ -281,7 +296,7 @@ button {
   display: grid;
   gap: 6px;
   min-width: 0;
-  padding: 10px;
+  padding: 7px 9px;
   border-right: 1px solid rgba(15, 0, 0, 0.12);
   border-bottom: 1px solid rgba(15, 0, 0, 0.12);
 }
@@ -307,9 +322,11 @@ button {
 }
 
 .ack-panel {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 6px 8px;
   border-left: 2px solid #201d1d;
   background: #f1eeee;
 }
@@ -317,7 +334,7 @@ button {
 .ack-panel p {
   color: #424245;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
@@ -333,16 +350,10 @@ button {
   text-transform: uppercase;
 }
 
-@media (min-width: 600px) {
-  .camera-frame {
-    aspect-ratio: 4 / 3;
-  }
-}
-
 @media (max-width: 420px) {
   .app-shell {
-    gap: 18px;
-    padding: 16px;
+    gap: 12px;
+    padding: 10px;
   }
 
   .brand p {
@@ -354,10 +365,10 @@ button {
   }
 
   .intro {
-    padding-top: 12px;
+    padding-top: 4px;
   }
 
   .intro h2 {
-    font-size: 27px;
+    font-size: 24px;
   }
 }

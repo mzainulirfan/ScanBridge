@@ -64,7 +64,7 @@ function ScannerFrame({
       </div>
       <div className="action-row">
         <button className="secondary" onClick={onReconnect} type="button">
-          [reconnect relay]
+          [reconnect]
         </button>
         <button className="danger" onClick={onDisconnect} type="button">
           [disconnect]

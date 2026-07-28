@@ -26,7 +26,7 @@ function App() {
   });
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${screen === "scanner" ? "scanner-mode" : ""}`}>
       <header className="header">
         <div className="brand">
           <span className="brand-mark">[SB]</span>
