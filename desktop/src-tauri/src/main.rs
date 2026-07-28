@@ -9,8 +9,6 @@ mod realtime;
 mod session;
 mod settings;
 mod storage;
-mod supabase;
-mod tray;
 
 use app::DesktopApp;
 use commands::AppState;

@@ -5,7 +5,6 @@ use crate::{
     keyboard,
     realtime::{RealtimeChannel, RealtimeClient},
     session::SessionManager,
-    tray::TrayState,
 };
 use std::path::PathBuf;
 
@@ -13,7 +12,6 @@ pub struct DesktopApp {
     pub session: SessionManager,
     pub config: AppConfig,
     pub history: HistoryStore,
-    pub tray: TrayState,
     pub realtime: RealtimeClient,
     pub channel: RealtimeChannel,
     data_dir: PathBuf,
@@ -29,7 +27,6 @@ impl DesktopApp {
             session,
             config,
             history,
-            tray: TrayState::default(),
             realtime: RealtimeClient::default(),
             channel,
             data_dir,

@@ -2,14 +2,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BaseEvent {
-    pub r#type: String,
-    pub session_id: String,
-    pub timestamp: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScanEvent {
     pub r#type: String,
     pub session_id: String,
@@ -17,19 +9,6 @@ pub struct ScanEvent {
     pub symbology: Option<String>,
     pub timestamp: String,
     pub source: String,
-}
-
-impl ScanEvent {
-    pub fn new(session_id: String, barcode: impl Into<String>, symbology: Option<&str>) -> Self {
-        Self {
-            r#type: "scan".to_string(),
-            session_id,
-            barcode: barcode.into(),
-            symbology: symbology.map(ToOwned::to_owned),
-            timestamp: "2026-07-27T12:00:00.000Z".to_string(),
-            source: "mobile".to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,15 +55,4 @@ impl DesktopStatusEvent {
             timestamp: "2026-07-27T12:00:00.000Z".to_string(),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum RealtimeEvent {
-    #[serde(rename = "scan")]
-    Scan(ScanEvent),
-    #[serde(rename = "scan_ack")]
-    ScanAck(ScanAckEvent),
-    #[serde(rename = "desktop_status")]
-    DesktopStatus(DesktopStatusEvent),
 }

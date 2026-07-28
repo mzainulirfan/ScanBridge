@@ -1,4 +1,4 @@
-use crate::contracts::{DesktopStatusEvent, ScanAckEvent, ScanEvent};
+use crate::contracts::{DesktopStatusEvent, ScanAckEvent};
 
 #[derive(Debug, Clone)]
 pub struct RealtimeChannel {
@@ -26,9 +26,5 @@ impl RealtimeClient {
 
     pub fn ack_scan(&self, session_id: &str, barcode: &str, message: &str) -> ScanAckEvent {
         ScanAckEvent::typed(session_id.to_string(), barcode, message)
-    }
-
-    pub fn normalize_scan(&self, event: ScanEvent) -> ScanEvent {
-        event
     }
 }
