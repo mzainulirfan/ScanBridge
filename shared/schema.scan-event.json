@@ -6,7 +6,7 @@
   "properties": {
     "type": { "const": "scan" },
     "scanId": { "type": "string", "format": "uuid" },
-    "sessionId": { "type": "string", "pattern": "^[A-Z0-9]{6}$" },
+    "sessionId": { "type": "string", "pattern": "^[0-9]{6}$" },
     "barcode": { "type": "string", "minLength": 1, "maxLength": 256 },
     "symbology": { "type": "string" },
     "timestamp": { "type": "string", "format": "date-time" },

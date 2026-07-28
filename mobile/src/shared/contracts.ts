@@ -113,7 +113,7 @@ export function formatPairingCode(value: string): string {
 }
 
 export function isValidPairingCode(value: string): boolean {
-  return normalizePairingCode(value).length === 6;
+  return /^\d{6}$/.test(normalizePairingCode(value));
 }
 
 export function normalizeBarcode(barcode: string): string {

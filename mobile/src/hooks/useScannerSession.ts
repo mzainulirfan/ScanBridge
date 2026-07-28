@@ -14,7 +14,6 @@ import {
   createClientJoinedEvent,
   createClientLeftEvent,
   createSessionId,
-  formatPairingCode,
   isValidPairingCode,
   normalizeBarcode,
   normalizePairingCode,
@@ -180,7 +179,7 @@ export function useScannerSession() {
   }, [realtime, screen, sessionId]);
 
   const updateSessionId = useCallback((value: string) => {
-    setSessionId(normalizePairingCode(value).slice(0, 6));
+    setSessionId(value.replace(/\D/g, "").slice(0, 6));
   }, []);
 
   const connectWithCode = useCallback(() => {
@@ -265,7 +264,7 @@ export function useScannerSession() {
     setSessionId,
     updateSessionId,
     connectWithCode,
-    pairingCode: formatPairingCode(sessionId),
+    pairingCode: sessionId,
     status,
     setStatus,
     barcode,
