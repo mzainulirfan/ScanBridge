@@ -4,7 +4,6 @@ import type { RefObject } from "react";
 type ScannerPanelProps = {
   barcode: string;
   manualBarcode: string;
-  lastAck: string;
   active: boolean;
   error?: string | null;
   videoRef: RefObject<HTMLVideoElement>;
@@ -20,7 +19,6 @@ type ScannerPanelProps = {
 function ScannerPanel({
   barcode,
   manualBarcode,
-  lastAck,
   active,
   error,
   videoRef,
@@ -52,10 +50,6 @@ function ScannerPanel({
           });
         }}
       />
-      <section className="ack-panel" aria-live="polite">
-        <span>aktivitas terakhir</span>
-        <p>{lastAck || "Menunggu scan pertama."}</p>
-      </section>
     </>
   );
 }

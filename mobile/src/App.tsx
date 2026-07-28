@@ -21,7 +21,6 @@ function App() {
     manualBarcode,
     setBarcode,
     setManualBarcode,
-    lastAck,
     toast,
     realtimeConfigured,
     submitScan,
@@ -78,7 +77,6 @@ function App() {
         <ScannerPanel
           barcode={barcode}
           manualBarcode={manualBarcode}
-          lastAck={lastAck}
           active={scanner.active}
           error={scanner.error}
           videoRef={scanner.videoRef}
