@@ -20,6 +20,7 @@ pub struct PairingInfo {
     pub channel_name: String,
     pub pairing_url: String,
     pub qr_placeholder: String,
+    pub has_trusted_client: bool,
 }
 
 #[tauri::command]
@@ -30,18 +31,20 @@ pub fn get_pairing_info(state: State<'_, AppState>) -> Result<PairingInfo, Strin
         channel_name: app.channel.channel_name.clone(),
         pairing_url: qr::build_pairing_url(&app.session.id()),
         qr_placeholder: qr::render_placeholder(&app.channel),
+        has_trusted_client: app.session.has_trusted_client(),
     })
 }
 
 #[tauri::command]
 pub fn reset_pairing_code(state: State<'_, AppState>) -> Result<PairingInfo, String> {
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
-    app.reset_pairing();
+    app.reset_pairing()?;
     Ok(PairingInfo {
         session_id: app.session.id(),
         channel_name: app.channel.channel_name.clone(),
         pairing_url: qr::build_pairing_url(&app.session.id()),
         qr_placeholder: qr::render_placeholder(&app.channel),
+        has_trusted_client: app.session.has_trusted_client(),
     })
 }
 
@@ -52,9 +55,14 @@ pub fn get_status(state: State<'_, AppState>) -> Result<DesktopStatusEvent, Stri
 }
 
 #[tauri::command]
-pub fn mark_connected(state: State<'_, AppState>) -> Result<DesktopStatusEvent, String> {
+pub fn mark_connected(
+    client_id: String,
+    state: State<'_, AppState>,
+) -> Result<DesktopStatusEvent, String> {
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
-    app.connect();
+    if !app.connect(&client_id)? {
+        return Err("Perangkat mobile tidak dikenali".to_string());
+    }
     Ok(app.status())
 }
 

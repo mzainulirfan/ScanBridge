@@ -6,11 +6,12 @@ export interface ScanResult {
   symbology?: string;
 }
 
-export function createScanEvent(sessionId: string, result: ScanResult): ScanEvent {
+export function createScanEvent(sessionId: string, clientId: string, result: ScanResult): ScanEvent {
   return {
     type: "scan",
     scanId: createScanId(),
     sessionId,
+    clientId,
     barcode: normalizeBarcode(result.barcode),
     symbology: result.symbology,
     timestamp: new Date().toISOString(),

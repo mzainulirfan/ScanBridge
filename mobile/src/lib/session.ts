@@ -1,6 +1,7 @@
 import { isValidPairingCode, normalizePairingCode } from "../shared/contracts";
 
 const PAIRING_CODE_STORAGE_KEY = "scanbridge.pairingCode";
+const CLIENT_ID_STORAGE_KEY = "scanbridge.clientId";
 
 export function getSessionFromLocation(location = window.location): string | null {
   const params = new URLSearchParams(location.search);
@@ -40,6 +41,30 @@ export function clearStoredPairingCode(storage?: Storage): void {
     (storage ?? window.localStorage).removeItem(PAIRING_CODE_STORAGE_KEY);
   } catch {
     // The in-memory session can still be disconnected.
+  }
+}
+
+export function getOrCreateStoredClientId(storage?: Storage): string {
+  const target = storage ?? window.localStorage;
+  try {
+    const stored = target.getItem(CLIENT_ID_STORAGE_KEY)?.trim();
+    if (stored) return stored;
+    const clientId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    target.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+    return clientId;
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+export function clearStoredClientId(storage?: Storage): void {
+  try {
+    (storage ?? window.localStorage).removeItem(CLIENT_ID_STORAGE_KEY);
+  } catch {
+    // Disconnect still completes when storage is unavailable.
   }
 }
 

@@ -38,9 +38,9 @@ export async function subscribeDesktopSession(
   supabase: DesktopSupabase,
   sessionId: string,
   onScan: (event: RealtimeEvent) => Promise<ScanAckEvent | null>,
-  onConnected: () => Promise<void>,
-  onDisconnected: () => Promise<void>,
-  onHeartbeat: () => Promise<void>,
+  onConnected: (clientId: string) => Promise<void>,
+  onDisconnected: (clientId: string) => Promise<void>,
+  onHeartbeat: (clientId: string) => Promise<void>,
   onSubscribed?: () => Promise<void>
 ): Promise<RealtimeChannel> {
   const channel = supabase.channel(buildSessionChannel(sessionId), {
@@ -48,17 +48,18 @@ export async function subscribeDesktopSession(
   });
 
   channel.on("broadcast", { event: "client_joined" }, async (payload) => {
-    if (!isRealtimeEvent(payload.payload)) return;
-    await onConnected();
+    if (!isRealtimeEvent(payload.payload) || payload.payload.type !== "client_joined") return;
+    await onConnected(payload.payload.clientId);
   });
 
-  channel.on("broadcast", { event: "client_left" }, async () => {
-    await onDisconnected();
+  channel.on("broadcast", { event: "client_left" }, async (payload) => {
+    if (!isRealtimeEvent(payload.payload) || payload.payload.type !== "client_left") return;
+    await onDisconnected(payload.payload.clientId);
   });
 
   channel.on("broadcast", { event: "client_heartbeat" }, async (payload) => {
-    if (!isRealtimeEvent(payload.payload)) return;
-    await onHeartbeat();
+    if (!isRealtimeEvent(payload.payload) || payload.payload.type !== "client_heartbeat") return;
+    await onHeartbeat(payload.payload.clientId);
   });
 
   channel.on("broadcast", { event: "scan" }, async (payload) => {

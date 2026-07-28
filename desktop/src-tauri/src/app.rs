@@ -19,7 +19,8 @@ pub struct DesktopApp {
 
 impl DesktopApp {
     pub fn load(data_dir: PathBuf) -> Self {
-        let session = SessionManager::new();
+        let session = SessionManager::load(data_dir.join("session.json"));
+        let _ = session.save(data_dir.join("session.json"));
         let channel = RealtimeChannel::new(session.id());
         let config = crate::settings::load_settings(data_dir.join("settings.json"));
         let history = HistoryStore::load(data_dir.join("history.json"), config.history_limit);
@@ -100,22 +101,34 @@ impl DesktopApp {
         self.save_history()
     }
 
-    pub fn connect(&mut self) {
+    pub fn connect(&mut self, client_id: &str) -> Result<bool, String> {
+        if !self.session.trust_client(client_id) {
+            return Ok(false);
+        }
         self.session.mark_connected();
+        self.save_session()?;
+        Ok(true)
     }
 
     pub fn disconnect(&mut self) {
         self.session.mark_disconnected();
     }
 
-    pub fn reset_pairing(&mut self) {
+    pub fn reset_pairing(&mut self) -> Result<(), String> {
         self.session.reset();
         self.channel = RealtimeChannel::new(self.session.id());
+        self.save_session()
     }
 
     fn save_history(&self) -> Result<(), String> {
         self.history
             .save(self.data_dir.join("history.json"))
+            .map_err(|error| error.to_string())
+    }
+
+    fn save_session(&self) -> Result<(), String> {
+        self.session
+            .save(self.data_dir.join("session.json"))
             .map_err(|error| error.to_string())
     }
 
@@ -125,6 +138,9 @@ impl DesktopApp {
         }
         if event.session_id != self.session.id() {
             return Err("Sesi scan tidak cocok".to_string());
+        }
+        if !self.session.is_trusted(&event.client_id) {
+            return Err("Perangkat mobile tidak dikenali".to_string());
         }
         let barcode = event.barcode.trim();
         if barcode.is_empty() || barcode.chars().count() > 256 {
@@ -146,7 +162,11 @@ mod tests {
     use uuid::Uuid;
 
     fn app() -> DesktopApp {
-        DesktopApp::load(std::env::temp_dir().join(format!("scanbridge-app-{}", Uuid::new_v4())))
+        let mut app = DesktopApp::load(
+            std::env::temp_dir().join(format!("scanbridge-app-{}", Uuid::new_v4())),
+        );
+        app.connect("client-1").expect("trust test client");
+        app
     }
 
     fn event(app: &DesktopApp) -> ScanEvent {
@@ -154,6 +174,7 @@ mod tests {
             r#type: "scan".to_string(),
             scan_id: Uuid::new_v4().to_string(),
             session_id: app.session.id(),
+            client_id: "client-1".to_string(),
             barcode: "899123".to_string(),
             symbology: Some("EAN_13".to_string()),
             timestamp: chrono::Utc::now().to_rfc3339(),

@@ -4,7 +4,7 @@ import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/real
 import "./styles.css";
 
 type TabName = "summary" | "output" | "activity";
-type PairingInfo = { sessionId: string };
+type PairingInfo = { sessionId: string; hasTrustedClient: boolean };
 type DesktopStatus = { status: string };
 type DesktopSettings = {
   autoEnter: boolean;
@@ -48,6 +48,7 @@ let mobileWatchdogTimer: number | null = null;
 let lastMobileSeenAt = 0;
 let autoHidden = false;
 let currentPairing: PairingInfo | null = null;
+let activeClientId: string | null = null;
 
 function setMessage(element: HTMLElement, message: string, state: "idle" | "success" | "error" = "idle") {
   element.textContent = message;
@@ -72,7 +73,9 @@ async function loadPairing() {
   currentPairing = await invoke<PairingInfo>("get_pairing_info");
   const formatted = formatPairingCode(currentPairing.sessionId);
   pairingCodeEl.textContent = formatted;
-  pairingUrlEl.textContent = `kode sesi: ${formatted}`;
+  pairingUrlEl.textContent = currentPairing.hasTrustedClient
+    ? `perangkat tersimpan / kode: ${formatted}`
+    : `kode sesi: ${formatted}`;
 }
 
 function formatPairingCode(value: string): string {
@@ -162,6 +165,7 @@ async function startRealtime() {
       supabase,
       pairing.sessionId,
       async (event) => {
+        if (activeClientId && event.type === "scan" && event.clientId !== activeClientId) return null;
         markMobileSeen();
         lastEventEl.textContent = event.type;
         if (event.type !== "scan") return null;
@@ -188,26 +192,33 @@ async function startRealtime() {
           return null;
         }
       },
-      async () => {
-        markMobileSeen();
-        mobileStatusEl.textContent = "terhubung";
-        mobileStatusEl.dataset.state = "active";
-        lastEventEl.textContent = "client_joined";
-        await invoke("mark_connected");
-        await loadStatus();
-        await broadcastDesktopStatus();
+      async (clientId) => {
+        try {
+          await invoke("mark_connected", { clientId });
+          activeClientId = clientId;
+          markMobileSeen();
+          mobileStatusEl.textContent = "terhubung";
+          mobileStatusEl.dataset.state = "active";
+          lastEventEl.textContent = "client_joined";
+          await loadStatus();
+          await broadcastDesktopStatus();
+        } catch {
+          setMessage(summaryMessageEl, "pairing.ditolak / perangkat tidak dikenali", "error");
+        }
       },
-      async () => {
+      async (clientId) => {
+        if (activeClientId !== clientId) return;
         lastMobileSeenAt = 0;
+        activeClientId = null;
         mobileStatusEl.textContent = "menunggu";
         mobileStatusEl.dataset.state = "idle";
         lastEventEl.textContent = "client_left";
         autoHidden = false;
-        await invoke("mark_disconnected");
-        await loadStatus(false);
-        setMessage(summaryMessageEl, "mobile.terputus / siap untuk pairing", "idle");
+        await invoke("reset_pairing_code");
+        window.location.reload();
       },
-      async () => {
+      async (clientId) => {
+        if (activeClientId !== clientId) return;
         markMobileSeen();
       },
       async () => {
@@ -387,8 +398,7 @@ byId<HTMLButtonElement>("copy-code").addEventListener("click", async () => {
   setMessage(summaryMessageEl, `kode.disalin / ${formatPairingCode(pairing.sessionId)}`, "success");
 });
 byId<HTMLButtonElement>("new-code").addEventListener("click", async () => {
-  await invoke("reset_pairing_code");
-  window.location.reload();
+  await disconnectSession();
 });
 byId<HTMLButtonElement>("disconnect-session").addEventListener("click", () => void disconnectSession());
 autoEnterEl.addEventListener("change", () => {

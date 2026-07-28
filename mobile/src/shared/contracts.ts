@@ -24,6 +24,7 @@ export interface ClientJoinedEvent extends BaseEvent {
 
 export interface ClientLeftEvent extends BaseEvent {
   type: "client_left";
+  clientId: string;
   source: "mobile";
 }
 
@@ -36,6 +37,7 @@ export interface ClientHeartbeatEvent extends BaseEvent {
 export interface ScanEvent extends BaseEvent {
   type: "scan";
   scanId: string;
+  clientId: string;
   barcode: string;
   symbology?: string;
   source: ScanSource;
@@ -69,6 +71,7 @@ export function isScanEvent(value: unknown): value is ScanEvent {
   return (
     event.type === "scan" &&
     typeof event.scanId === "string" &&
+    typeof event.clientId === "string" &&
     typeof event.sessionId === "string" &&
     typeof event.barcode === "string" &&
     event.source === "mobile"
@@ -130,10 +133,11 @@ export function createClientJoinedEvent(sessionId: string, clientId?: string): C
   };
 }
 
-export function createClientLeftEvent(sessionId: string): ClientLeftEvent {
+export function createClientLeftEvent(sessionId: string, clientId: string): ClientLeftEvent {
   return {
     type: "client_left",
     sessionId,
+    clientId,
     timestamp: new Date().toISOString(),
     source: "mobile"
   };

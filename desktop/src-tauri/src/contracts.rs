@@ -6,6 +6,7 @@ pub struct ScanEvent {
     pub r#type: String,
     pub scan_id: String,
     pub session_id: String,
+    pub client_id: String,
     pub barcode: String,
     pub symbology: Option<String>,
     pub timestamp: String,
