@@ -1,4 +1,9 @@
-import { buildConnectUrl, buildSessionChannel, isRealtimeEvent, normalizeBarcode } from "./contracts.ts";
+import {
+  buildConnectUrl,
+  buildSessionChannel,
+  isRealtimeEvent,
+  normalizeBarcode
+} from "../mobile/src/shared/contracts.ts";
 
 function expectEqual(actual: unknown, expected: unknown, label: string) {
   if (actual !== expected) {
