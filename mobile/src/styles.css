@@ -130,10 +130,10 @@ h1 {
   min-width: 0;
   min-height: 40px;
   padding: 8px 12px;
-  border: 1px solid #79c98d;
+  border: 1px solid #b9f6c8;
   border-radius: 4px;
-  background: rgba(18, 85, 38, 0.92);
-  color: #f3fff6;
+  background: #30d158;
+  color: #0b2a13;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
