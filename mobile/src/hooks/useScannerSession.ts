@@ -35,6 +35,7 @@ export function useScannerSession() {
     return getStoredPairingCode() ?? "";
   }, [sessionFromUrl]);
   const [screen, setScreen] = useState<ScannerState>(initialSessionId ? "scanner" : "home");
+  const [pairingPending, setPairingPending] = useState(false);
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [status, setStatus] = useState<string>(initialSessionId ? "Menghubungkan" : "Siap pairing");
   const [barcode, setBarcode] = useState("");
@@ -84,6 +85,7 @@ export function useScannerSession() {
       clearStoredPairingCode();
       clearSessionFromLocation();
       setSessionId("");
+      setPairingPending(false);
       setBarcode("");
       setLastAck("");
       lastDesktopSeenAt.current = 0;
@@ -112,6 +114,8 @@ export function useScannerSession() {
         }
         setStatus("Desktop siap");
         setLastAck("Desktop online. Scanner siap digunakan.");
+        setPairingPending(false);
+        setScreen("scanner");
       }
       if (event.type === "scan_ack") {
         const pending = pendingScans.current.get(event.scanId);
@@ -124,7 +128,7 @@ export function useScannerSession() {
   }, [disconnect, realtime]);
 
   useEffect(() => {
-    if (screen !== "scanner" || !realtime.configured || !isValidPairingCode(sessionId)) return;
+    if (screen !== "scanner" || pairingPending || !realtime.configured || !isValidPairingCode(sessionId)) return;
     const sendHeartbeat = () => {
       void realtime
         .publish(createClientHeartbeatEvent(sessionId, clientId.current))
@@ -140,7 +144,7 @@ export function useScannerSession() {
       window.clearInterval(heartbeat);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [realtime, screen, sessionId]);
+  }, [pairingPending, realtime, screen, sessionId]);
 
   useEffect(() => {
     if (screen !== "scanner") return;
@@ -157,7 +161,7 @@ export function useScannerSession() {
   }, [disconnect, screen]);
 
   useEffect(() => {
-    if (screen === "scanner") {
+    if (screen === "scanner" || pairingPending) {
       let cancelled = false;
       if (!isValidPairingCode(sessionId)) {
         setStatus("Kode tidak valid");
@@ -200,7 +204,7 @@ export function useScannerSession() {
         cancelled = true;
       };
     }
-  }, [realtime, screen, sessionId]);
+  }, [pairingPending, realtime, screen, sessionId]);
 
   const updateSessionId = useCallback((value: string) => {
     setSessionId(value.replace(/\D/g, "").slice(0, 6));
@@ -222,7 +226,9 @@ export function useScannerSession() {
     prepareScannerSound();
     setSessionId(nextSessionId);
     storePairingCode(nextSessionId);
-    setScreen("scanner");
+    setStatus("Memeriksa kode");
+    setLastAck("Mencari desktop dengan kode ini...");
+    setPairingPending(true);
   }, [realtime.configured, sessionId, showToast]);
 
   const submitScan = useCallback(
