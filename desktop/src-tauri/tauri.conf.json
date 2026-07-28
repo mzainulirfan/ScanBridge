@@ -19,5 +19,12 @@
         "decorations": true
       }
     ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "shortDescription": "Gunakan ponsel sebagai scanner barcode untuk Windows.",
+    "longDescription": "ScanBridge mengirim hasil scan barcode dari ponsel ke field aktif di Windows melalui koneksi realtime."
   }
 }
