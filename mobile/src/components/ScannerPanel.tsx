@@ -9,7 +9,10 @@ type ScannerPanelProps = {
   active: boolean;
   error?: string | null;
   videoRef: RefObject<HTMLVideoElement>;
+  torchSupported: boolean;
+  torchEnabled: boolean;
   onBarcodeChange: (value: string) => void;
+  onTorchToggle: () => void;
   onReconnect: () => void;
   onDisconnect: () => void;
   onSubmitScan: (value: string) => void;
@@ -23,7 +26,10 @@ function ScannerPanel({
   active,
   error,
   videoRef,
+  torchSupported,
+  torchEnabled,
   onBarcodeChange,
+  onTorchToggle,
   onReconnect,
   onDisconnect,
   onSubmitScan
@@ -37,7 +43,10 @@ function ScannerPanel({
         active={active}
         error={error}
         videoRef={videoRef}
+        torchSupported={torchSupported}
+        torchEnabled={torchEnabled}
         onBarcodeChange={onBarcodeChange}
+        onTorchToggle={onTorchToggle}
         onReconnect={onReconnect}
         onDisconnect={onDisconnect}
         onReady={() => onSubmitScan(barcode)}

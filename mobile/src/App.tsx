@@ -81,7 +81,10 @@ function App() {
           active={scanner.active}
           error={scanner.error}
           videoRef={scanner.videoRef}
+          torchSupported={scanner.torchSupported}
+          torchEnabled={scanner.torchEnabled}
           onBarcodeChange={setManualBarcode}
+          onTorchToggle={() => void scanner.toggleTorch()}
           onReconnect={() => {
             void reconnect();
           }}

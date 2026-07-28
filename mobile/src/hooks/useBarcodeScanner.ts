@@ -9,6 +9,11 @@ type UseBarcodeScannerOptions = {
   onScan: (result: ScanResult) => void;
 };
 
+function getVideoTrack(video: HTMLVideoElement | null): MediaStreamTrack | null {
+  const stream = video?.srcObject instanceof MediaStream ? video.srcObject : null;
+  return stream?.getVideoTracks()[0] ?? null;
+}
+
 const SCAN_FORMATS = [
   BarcodeFormat.EAN_8,
   BarcodeFormat.EAN_13,
@@ -37,6 +42,8 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
   const onScanRef = useRef(onScan);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -46,7 +53,26 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
     controlsRef.current?.stop();
     controlsRef.current = null;
     setActive(false);
+    setTorchEnabled(false);
   }, []);
+
+  const toggleTorch = useCallback(async () => {
+    const track = getVideoTrack(videoRef.current);
+    if (!track || !torchSupported) {
+      setError("Senter tidak didukung oleh kamera ini.");
+      return;
+    }
+    try {
+      const nextEnabled = !torchEnabled;
+      await track.applyConstraints({
+        advanced: [{ torch: nextEnabled } as MediaTrackConstraintSet]
+      });
+      setTorchEnabled(nextEnabled);
+      setError(null);
+    } catch {
+      setError("Senter tidak dapat diubah pada perangkat ini.");
+    }
+  }, [torchEnabled, torchSupported]);
 
   useEffect(() => {
     if (!enabled) {
@@ -103,6 +129,11 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
         }
         controlsRef.current = controls;
         setActive(true);
+        const track = getVideoTrack(video);
+        const capabilities = track?.getCapabilities?.() as
+          | (MediaTrackCapabilities & { torch?: boolean })
+          | undefined;
+        setTorchSupported(Boolean(capabilities?.torch));
         setError(null);
       })
       .catch((scanError: unknown) => {
@@ -120,6 +151,9 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
     videoRef,
     active,
     error,
-    stop
+    stop,
+    torchSupported,
+    torchEnabled,
+    toggleTorch
   };
 }

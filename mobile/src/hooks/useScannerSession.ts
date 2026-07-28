@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { scannerSuccessSound, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
@@ -19,6 +19,7 @@ import {
 } from "../shared/contracts";
 
 export type ScannerState = "home" | "connect" | "scanner";
+const DESKTOP_HEARTBEAT_TIMEOUT_MS = 12000;
 
 export function useScannerSession() {
   const sessionFromUrl = useMemo(() => getSessionFromLocation(), []);
@@ -36,6 +37,7 @@ export function useScannerSession() {
   const [manualBarcode, setManualBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
   const [realtime] = useState(() => createRealtimeClient());
+  const lastDesktopSeenAt = useRef(0);
 
   const disconnect = useCallback(
     async (notifyDesktop = true) => {
@@ -52,6 +54,7 @@ export function useScannerSession() {
       setSessionId("");
       setBarcode("");
       setLastAck("");
+      lastDesktopSeenAt.current = 0;
       setStatus("Siap pairing");
       setScreen("home");
     },
@@ -61,6 +64,7 @@ export function useScannerSession() {
   useEffect(() => {
     realtime.onEvent?.((event) => {
       if (event.type === "desktop_status") {
+        lastDesktopSeenAt.current = Date.now();
         if (event.status === "idle") {
           void disconnect(false);
           return;
@@ -72,6 +76,20 @@ export function useScannerSession() {
   }, [disconnect, realtime]);
 
   useEffect(() => {
+    if (screen !== "scanner") return;
+
+    const watchdog = window.setInterval(() => {
+      const lastSeen = lastDesktopSeenAt.current;
+      if (lastSeen > 0 && Date.now() - lastSeen > DESKTOP_HEARTBEAT_TIMEOUT_MS) {
+        setLastAck("Desktop tidak lagi aktif. Masukkan kembali kode saat desktop siap.");
+        void disconnect(false);
+      }
+    }, 2000);
+
+    return () => window.clearInterval(watchdog);
+  }, [disconnect, screen]);
+
+  useEffect(() => {
     if (screen === "scanner") {
       let cancelled = false;
       if (!isValidPairingCode(sessionId)) {
@@ -81,6 +99,7 @@ export function useScannerSession() {
         return;
       }
       setStatus("Menghubungkan");
+      lastDesktopSeenAt.current = 0;
       void realtime
         .connect(sessionId)
         .then(() => realtime.publish(createClientJoinedEvent(sessionId)))

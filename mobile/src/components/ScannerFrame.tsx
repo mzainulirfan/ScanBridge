@@ -5,7 +5,10 @@ type ScannerFrameProps = {
   active: boolean;
   error?: string | null;
   videoRef: React.RefObject<HTMLVideoElement>;
+  torchSupported: boolean;
+  torchEnabled: boolean;
   onBarcodeChange: (value: string) => void;
+  onTorchToggle: () => void;
   onReconnect: () => void;
   onDisconnect: () => void;
   onReady: () => void;
@@ -18,7 +21,10 @@ function ScannerFrame({
   active,
   error,
   videoRef,
+  torchSupported,
+  torchEnabled,
   onBarcodeChange,
+  onTorchToggle,
   onReconnect,
   onDisconnect,
   onReady
@@ -39,6 +45,16 @@ function ScannerFrame({
           playsInline
           aria-label="Pratinjau kamera scanner barcode"
         />
+        <button
+          className={torchEnabled ? "camera-torch active" : "camera-torch"}
+          disabled={!active || !torchSupported}
+          onClick={onTorchToggle}
+          aria-pressed={torchEnabled}
+          title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak didukung kamera ini"}
+          type="button"
+        >
+          {torchEnabled ? "[matikan senter]" : "[nyalakan senter]"}
+        </button>
         <div className="scan-guide" aria-hidden="true">
           <span />
         </div>

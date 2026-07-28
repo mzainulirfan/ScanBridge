@@ -43,6 +43,7 @@ const activityListEl = byId<HTMLElement>("activity-list");
 const activityCountEl = byId<HTMLElement>("activity-count");
 
 let activeChannel: Awaited<ReturnType<typeof subscribeDesktopSession>> | null = null;
+let heartbeatTimer: number | null = null;
 let autoHidden = false;
 let currentPairing: PairingInfo | null = null;
 
@@ -75,6 +76,34 @@ async function loadPairing() {
 function formatPairingCode(value: string): string {
   const clean = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 6);
   return clean.length > 3 ? `${clean.slice(0, 3)} ${clean.slice(3)}` : clean;
+}
+
+async function broadcastDesktopStatus() {
+  if (!activeChannel || !currentPairing) return;
+  try {
+    const currentStatus = await invoke<DesktopStatus>("get_status");
+    await activeChannel.send({
+      type: "broadcast",
+      event: "desktop_status",
+      payload: {
+        type: "desktop_status",
+        sessionId: currentPairing.sessionId,
+        status: currentStatus.status === "connected" ? "connected" : "waiting_pairing",
+        deviceCount: currentStatus.status === "connected" ? 1 : 0,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch {
+    // The mobile watchdog handles a relay or desktop connection that goes silent.
+  }
+}
+
+function startDesktopHeartbeat() {
+  if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
+  void broadcastDesktopStatus();
+  heartbeatTimer = window.setInterval(() => {
+    void broadcastDesktopStatus();
+  }, 4000);
 }
 
 async function loadStatus(allowAutoHide = true) {
@@ -131,6 +160,7 @@ async function startRealtime() {
         lastEventEl.textContent = "client_joined";
         await invoke("mark_connected");
         await loadStatus();
+        await broadcastDesktopStatus();
       },
       async () => {
         mobileStatusEl.textContent = "menunggu";
@@ -147,6 +177,7 @@ async function startRealtime() {
         setMessage(summaryMessageEl, "relay.siap / masukkan kode pairing di mobile", "success");
       }
     );
+    startDesktopHeartbeat();
   } catch (error) {
     relayStatusEl.textContent = "gagal";
     relayStatusEl.dataset.state = "error";
@@ -261,6 +292,10 @@ async function disconnectSession() {
         timestamp: new Date().toISOString()
       }
     });
+  }
+  if (heartbeatTimer !== null) {
+    window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
   }
   await invoke("reset_pairing_code");
   window.location.reload();
