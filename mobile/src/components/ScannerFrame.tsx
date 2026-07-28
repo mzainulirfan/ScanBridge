@@ -1,5 +1,4 @@
 type ScannerFrameProps = {
-  status: string;
   lastScan: string;
   manualBarcode: string;
   active: boolean;
@@ -15,7 +14,6 @@ type ScannerFrameProps = {
 };
 
 function ScannerFrame({
-  status,
   lastScan,
   manualBarcode,
   active,
@@ -66,10 +64,6 @@ function ScannerFrame({
         </div>
       )}
       <div className="scan-meta">
-        <div>
-          <span>koneksi</span>
-          <strong>{status}</strong>
-        </div>
         <div>
           <span>scan terakhir</span>
           <strong>{lastScan || "menunggu..."}</strong>

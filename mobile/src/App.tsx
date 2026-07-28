@@ -74,7 +74,6 @@ function App() {
 
       {screen === "scanner" && (
         <ScannerPanel
-          status={status}
           barcode={barcode}
           manualBarcode={manualBarcode}
           lastAck={lastAck}

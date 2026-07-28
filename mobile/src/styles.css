@@ -331,7 +331,6 @@ button:disabled {
 
 .scan-meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid rgba(15, 0, 0, 0.12);
   border-left: 1px solid rgba(15, 0, 0, 0.12);
 }

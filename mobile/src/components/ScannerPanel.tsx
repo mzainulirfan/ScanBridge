@@ -2,7 +2,6 @@ import ScannerFrame from "./ScannerFrame";
 import type { RefObject } from "react";
 
 type ScannerPanelProps = {
-  status: string;
   barcode: string;
   manualBarcode: string;
   lastAck: string;
@@ -19,7 +18,6 @@ type ScannerPanelProps = {
 };
 
 function ScannerPanel({
-  status,
   barcode,
   manualBarcode,
   lastAck,
@@ -37,7 +35,6 @@ function ScannerPanel({
   return (
     <>
       <ScannerFrame
-        status={status}
         lastScan={barcode}
         manualBarcode={manualBarcode}
         active={active}
@@ -52,7 +49,7 @@ function ScannerPanel({
         onReady={() => onSubmitScan(barcode)}
       />
       <section className="ack-panel" aria-live="polite">
-        <span>status relay</span>
+        <span>aktivitas terakhir</span>
         <p>{lastAck || "Menunggu scan pertama."}</p>
       </section>
     </>
