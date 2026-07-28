@@ -95,12 +95,6 @@ function App() {
           }}
         />
       )}
-      {toast && (
-        <div className="success-toast" role="status" aria-live="polite">
-          <span aria-hidden="true">[x]</span>
-          {toast}
-        </div>
-      )}
     </main>
   );
 }

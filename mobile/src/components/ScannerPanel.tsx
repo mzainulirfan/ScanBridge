@@ -6,6 +6,7 @@ type ScannerPanelProps = {
   manualBarcode: string;
   active: boolean;
   error?: string | null;
+  toast?: string;
   videoRef: RefObject<HTMLVideoElement>;
   torchSupported: boolean;
   torchEnabled: boolean;
@@ -21,6 +22,7 @@ function ScannerPanel({
   manualBarcode,
   active,
   error,
+  toast,
   videoRef,
   torchSupported,
   torchEnabled,
@@ -37,6 +39,7 @@ function ScannerPanel({
         manualBarcode={manualBarcode}
         active={active}
         error={error}
+        toast={toast}
         videoRef={videoRef}
         torchSupported={torchSupported}
         torchEnabled={torchEnabled}
