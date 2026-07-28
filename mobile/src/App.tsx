@@ -28,6 +28,7 @@ function App() {
     disconnect
   } = useScannerSession();
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   useEffect(() => {
     const handleInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -74,11 +75,7 @@ function App() {
           pairingCode={pairingCode}
           onPairingCodeChange={updateSessionId}
           onConnect={connectWithCode}
-          onResetPairing={() => {
-            if (window.confirm("Hapus kode pairing tersimpan?")) {
-              void disconnect();
-            }
-          }}
+          onResetPairing={() => setResetDialogOpen(true)}
         />
       )}
 
@@ -97,11 +94,7 @@ function App() {
           onReconnect={() => {
             void reconnect();
           }}
-          onResetPairing={() => {
-            if (window.confirm("Reset kode pairing dan kembali ke halaman pairing?")) {
-              void disconnect();
-            }
-          }}
+          onResetPairing={() => setResetDialogOpen(true)}
           onDisconnect={() => {
             void disconnect();
           }}
@@ -109,6 +102,41 @@ function App() {
             return submitScan(value);
           }}
         />
+      )}
+      {resetDialogOpen && (
+        <div
+          className="confirm-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setResetDialogOpen(false);
+          }}
+        >
+          <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="reset-title">
+            <div className="confirm-dialog-heading">
+              <span className="confirm-marker" aria-hidden="true">[!]</span>
+              <div>
+                <h2 id="reset-title">Reset kode pairing?</h2>
+                <p>Kode tersimpan akan dihapus dan aplikasi kembali ke halaman pairing.</p>
+              </div>
+            </div>
+            <p className="confirm-dialog-note">Desktop tetap aktif dan dapat menerima kode baru.</p>
+            <div className="confirm-dialog-actions">
+              <button className="secondary" onClick={() => setResetDialogOpen(false)} type="button">
+                [batal]
+              </button>
+              <button
+                className="danger"
+                onClick={() => {
+                  setResetDialogOpen(false);
+                  void disconnect();
+                }}
+                type="button"
+              >
+                [reset kode]
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
   );

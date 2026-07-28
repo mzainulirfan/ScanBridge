@@ -240,6 +240,70 @@ button:disabled {
   gap: 8px;
 }
 
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(32, 29, 29, 0.64);
+}
+
+.confirm-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(360px, 100%);
+  border: 1px solid #646262;
+  border-radius: 4px;
+  padding: 16px;
+  background: #fdfcfc;
+  color: #201d1d;
+}
+
+.confirm-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.confirm-dialog-heading > div {
+  display: grid;
+  gap: 6px;
+}
+
+.confirm-dialog h2 {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.confirm-dialog p {
+  color: #646262;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.confirm-marker {
+  flex: 0 0 auto;
+  color: #ff3b30;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.confirm-dialog-note {
+  border-left: 2px solid #ff9f0a;
+  padding: 8px 10px;
+  background: #f8f7f7;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 0, 0, 0.12);
+}
+
 .privacy-note {
   color: #646262;
   font-size: 12px;
