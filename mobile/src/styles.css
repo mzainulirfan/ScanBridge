@@ -281,6 +281,12 @@ button:disabled {
   padding: 4px;
 }
 
+.camera-torch svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
 .camera-torch.active {
   border-color: #ffb340;
   background: #ffb340;

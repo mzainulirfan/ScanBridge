@@ -78,7 +78,18 @@ function ScannerFrame({
           title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak didukung kamera ini"}
           type="button"
         >
-          {torchEnabled ? "☼" : "◌"}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M18 2H6c-.55 0-1 .45-1 1v5c0 1.86 1.28 3.43 3 3.87V21c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-9.13c1.72-.44 3-2.01 3-3.87V3c0-.55-.45-1-1-1m-1 2v1H7V4zm-2 6c-.55 0-1 .45-1 1v9h-4v-9c0-.55-.45-1-1-1-1.1 0-2-.9-2-2V7h10v1c0 1.1-.9 2-2 2" />
+            <path d="M11.5 10h1v3h-1z" />
+          </svg>
         </button>
         <div className="scan-guide" aria-hidden="true">
           <span />
