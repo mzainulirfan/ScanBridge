@@ -27,6 +27,25 @@ function ScannerFrame({
   onDisconnect,
   onReady
 }: ScannerFrameProps) {
+  const swipeStartY = useRef<number | null>(null);
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    swipeStartY.current = event.clientY;
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    const startY = swipeStartY.current;
+    swipeStartY.current = null;
+    if (startY === null || !torchSupported) return;
+
+    const deltaY = event.clientY - startY;
+    if (Math.abs(deltaY) < 45) return;
+    const shouldEnable = deltaY < 0;
+    if (shouldEnable !== torchEnabled) {
+      onTorchToggle();
+    }
+  }
+
   return (
     <section className="scanner">
       <div className="scanner-heading">
@@ -35,7 +54,14 @@ function ScannerFrame({
           {active ? "aktif" : "menyiapkan"}
         </span>
       </div>
-      <div className="camera-frame">
+      <div
+        className="camera-frame"
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={() => {
+          swipeStartY.current = null;
+        }}
+      >
         <video
           ref={videoRef}
           className="camera-video"
@@ -48,10 +74,11 @@ function ScannerFrame({
           disabled={!active || !torchSupported}
           onClick={onTorchToggle}
           aria-pressed={torchEnabled}
+          aria-label={torchEnabled ? "Matikan senter" : "Nyalakan senter"}
           title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak didukung kamera ini"}
           type="button"
         >
-          {torchEnabled ? "[matikan senter]" : "[nyalakan senter]"}
+          {torchEnabled ? "☼" : "◌"}
         </button>
         <div className="scan-guide" aria-hidden="true">
           <span />
@@ -93,3 +120,4 @@ function ScannerFrame({
 }
 
 export default ScannerFrame;
+import { useRef } from "react";

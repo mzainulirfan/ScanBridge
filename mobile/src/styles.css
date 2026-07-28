@@ -251,6 +251,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border: 1px solid #201d1d;
+  touch-action: none;
 }
 
 .camera-placeholder {
@@ -274,7 +275,10 @@ button:disabled {
   border-color: rgba(253, 252, 252, 0.8);
   background: rgba(32, 29, 29, 0.86);
   color: #fdfcfc;
-  font-size: 12px;
+  font-size: 22px;
+  line-height: 1;
+  width: 40px;
+  padding: 4px;
 }
 
 .camera-torch.active {
