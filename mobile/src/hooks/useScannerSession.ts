@@ -22,7 +22,7 @@ import {
 } from "../shared/contracts";
 
 export type ScannerState = "home" | "connect" | "scanner";
-const DESKTOP_HEARTBEAT_TIMEOUT_MS = 12000;
+const DESKTOP_HEARTBEAT_TIMEOUT_MS = 30000;
 const SCAN_ACK_TIMEOUT_MS = 5000;
 
 export function useScannerSession() {
@@ -114,12 +114,21 @@ export function useScannerSession() {
 
   useEffect(() => {
     if (screen !== "scanner" || !realtime.configured || !isValidPairingCode(sessionId)) return;
-    const heartbeat = window.setInterval(() => {
+    const sendHeartbeat = () => {
       void realtime
         .publish(createClientHeartbeatEvent(sessionId, clientId.current))
         .catch(() => setStatus("Koneksi tidak stabil"));
-    }, 4000);
-    return () => window.clearInterval(heartbeat);
+    };
+    sendHeartbeat();
+    const heartbeat = window.setInterval(sendHeartbeat, 4000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") sendHeartbeat();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [realtime, screen, sessionId]);
 
   useEffect(() => {
@@ -149,7 +158,10 @@ export function useScannerSession() {
       lastDesktopSeenAt.current = 0;
       void realtime
         .connect(sessionId)
-        .then(() => realtime.publish(createClientJoinedEvent(sessionId, clientId.current)))
+        .then(async () => {
+          await realtime.publish(createClientJoinedEvent(sessionId, clientId.current));
+          await realtime.publish(createClientHeartbeatEvent(sessionId, clientId.current));
+        })
         .then(() => {
           if (cancelled) return;
           setStatus("Terhubung ke relay");

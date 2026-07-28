@@ -115,7 +115,7 @@ function markMobileSeen() {
 function startMobileWatchdog() {
   if (mobileWatchdogTimer !== null) window.clearInterval(mobileWatchdogTimer);
   mobileWatchdogTimer = window.setInterval(() => {
-    if (lastMobileSeenAt === 0 || Date.now() - lastMobileSeenAt <= 12000) return;
+    if (lastMobileSeenAt === 0 || Date.now() - lastMobileSeenAt <= 30000) return;
     lastMobileSeenAt = 0;
     mobileStatusEl.textContent = "menunggu";
     mobileStatusEl.dataset.state = "idle";
@@ -162,6 +162,7 @@ async function startRealtime() {
       supabase,
       pairing.sessionId,
       async (event) => {
+        markMobileSeen();
         lastEventEl.textContent = event.type;
         if (event.type !== "scan") return null;
 
