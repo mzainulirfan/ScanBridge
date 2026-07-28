@@ -28,7 +28,7 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   }
 };
 
-export function useBarcodeScanner({ enabled, cooldownMs = 250, onScan }: UseBarcodeScannerOptions) {
+export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarcodeScannerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
