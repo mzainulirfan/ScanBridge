@@ -20,11 +20,29 @@ impl RealtimeChannel {
 pub struct RealtimeClient;
 
 impl RealtimeClient {
-    pub fn create_status(&self, session_id: &str, status: &str, device_count: u32) -> DesktopStatusEvent {
+    pub fn create_status(
+        &self,
+        session_id: &str,
+        status: &str,
+        device_count: u32,
+    ) -> DesktopStatusEvent {
         DesktopStatusEvent::new(session_id.to_string(), status, device_count)
     }
 
-    pub fn ack_scan(&self, session_id: &str, barcode: &str, message: &str) -> ScanAckEvent {
-        ScanAckEvent::typed(session_id.to_string(), barcode, message)
+    pub fn ack_scan(
+        &self,
+        scan_id: &str,
+        session_id: &str,
+        barcode: &str,
+        success: bool,
+        message: &str,
+    ) -> ScanAckEvent {
+        ScanAckEvent::new(
+            scan_id.to_string(),
+            session_id.to_string(),
+            barcode,
+            success,
+            message,
+        )
     }
 }

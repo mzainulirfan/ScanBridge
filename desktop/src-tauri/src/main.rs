@@ -16,7 +16,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager,
+    Emitter, Manager, WindowEvent,
 };
 
 fn main() {
@@ -32,7 +32,9 @@ fn main() {
             let open_item = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
             let exit_item = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_item, &exit_item])?;
-            let mut tray_builder = TrayIconBuilder::new().menu(&menu).show_menu_on_left_click(true);
+            let mut tray_builder = TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(true);
             if let Some(icon) = app.default_window_icon() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
@@ -68,6 +70,12 @@ fn main() {
             commands::show_main_window,
             commands::exit_app
         ])
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running ScanBridge desktop");
 }

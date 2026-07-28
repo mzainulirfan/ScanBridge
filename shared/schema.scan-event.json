@@ -2,10 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ScanEvent",
   "type": "object",
-  "required": ["type", "sessionId", "barcode", "timestamp", "source"],
+  "required": ["type", "scanId", "sessionId", "barcode", "timestamp", "source"],
   "properties": {
     "type": { "const": "scan" },
-    "sessionId": { "type": "string", "format": "uuid" },
+    "scanId": { "type": "string", "format": "uuid" },
+    "sessionId": { "type": "string", "pattern": "^[A-Z0-9]{6}$" },
     "barcode": { "type": "string", "minLength": 1, "maxLength": 256 },
     "symbology": { "type": "string" },
     "timestamp": { "type": "string", "format": "date-time" },

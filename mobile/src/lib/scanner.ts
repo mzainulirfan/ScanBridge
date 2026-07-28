@@ -9,12 +9,20 @@ export interface ScanResult {
 export function createScanEvent(sessionId: string, result: ScanResult): ScanEvent {
   return {
     type: "scan",
+    scanId: createScanId(),
     sessionId,
     barcode: normalizeBarcode(result.barcode),
     symbology: result.symbology,
     timestamp: new Date().toISOString(),
     source: "mobile"
   };
+}
+
+function createScanId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export function isValidScanValue(value: string): boolean {

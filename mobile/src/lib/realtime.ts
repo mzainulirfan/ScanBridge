@@ -1,10 +1,11 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
 import type { RealtimeEvent } from "../shared/contracts";
-import { buildSessionChannel } from "../shared/contracts";
+import { buildSessionChannel, isRealtimeEvent } from "../shared/contracts";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 
 export interface RealtimeClient {
+  readonly configured: boolean;
   connect(sessionId: string): Promise<void>;
   publish(event: RealtimeEvent): Promise<void>;
   disconnect(): Promise<void>;
@@ -42,6 +43,7 @@ function isHttpUrl(value: string): boolean {
 }
 
 export class SupabaseRealtimeClient implements RealtimeClient {
+  readonly configured = true;
   private supabase: SupabaseClient;
   private channel: RealtimeChannel | null = null;
   private sessionId: string | null = null;
@@ -61,7 +63,10 @@ export class SupabaseRealtimeClient implements RealtimeClient {
     });
 
     this.channel.on("broadcast", { event: "desktop_status" }, (payload) => {
-      this.eventHandler?.(payload.payload as RealtimeEvent);
+      if (isRealtimeEvent(payload.payload)) this.eventHandler?.(payload.payload);
+    });
+    this.channel.on("broadcast", { event: "scan_ack" }, (payload) => {
+      if (isRealtimeEvent(payload.payload)) this.eventHandler?.(payload.payload);
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -109,6 +114,7 @@ export class SupabaseRealtimeClient implements RealtimeClient {
 }
 
 export class MockRealtimeClient implements RealtimeClient {
+  readonly configured = false;
   private state: ConnectionState = "disconnected";
   private sessionId: string | null = null;
   private events: RealtimeEvent[] = [];
@@ -122,16 +128,14 @@ export class MockRealtimeClient implements RealtimeClient {
   }
 
   async connect(sessionId: string): Promise<void> {
-    this.state = "connecting";
     this.sessionId = sessionId;
-    this.state = "connected";
+    this.state = "disconnected";
+    throw new Error("Supabase belum dikonfigurasi");
   }
 
   async publish(event: RealtimeEvent): Promise<void> {
-    if (this.sessionId !== event.sessionId) {
-      throw new Error("session mismatch");
-    }
     this.events.push(event);
+    throw new Error("Supabase belum dikonfigurasi");
   }
 
   async disconnect(): Promise<void> {

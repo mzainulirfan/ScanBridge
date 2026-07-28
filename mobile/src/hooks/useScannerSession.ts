@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { scannerSuccessSound, vibrate } from "../lib/feedback";
+import { prepareScannerSound, scannerSuccessSound, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
 import {
@@ -10,16 +10,20 @@ import {
   storePairingCode
 } from "../lib/session";
 import {
+  createClientHeartbeatEvent,
   createClientJoinedEvent,
   createClientLeftEvent,
+  createSessionId,
   formatPairingCode,
   isValidPairingCode,
   normalizeBarcode,
-  normalizePairingCode
+  normalizePairingCode,
+  type ScanAckEvent
 } from "../shared/contracts";
 
 export type ScannerState = "home" | "connect" | "scanner";
 const DESKTOP_HEARTBEAT_TIMEOUT_MS = 12000;
+const SCAN_ACK_TIMEOUT_MS = 5000;
 
 export function useScannerSession() {
   const sessionFromUrl = useMemo(() => getSessionFromLocation(), []);
@@ -38,8 +42,12 @@ export function useScannerSession() {
   const [lastAck, setLastAck] = useState<string>("");
   const [toast, setToast] = useState("");
   const [realtime] = useState(() => createRealtimeClient());
+  const clientId = useRef(createSessionId());
   const lastDesktopSeenAt = useRef(0);
   const toastTimer = useRef<number | null>(null);
+  const pendingScans = useRef(
+    new Map<string, { resolve: (ack: ScanAckEvent) => void; reject: (error: Error) => void; timer: number }>()
+  );
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -53,6 +61,11 @@ export function useScannerSession() {
   useEffect(() => {
     return () => {
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+      pendingScans.current.forEach(({ reject, timer }) => {
+        window.clearTimeout(timer);
+        reject(new Error("Scanner ditutup"));
+      });
+      pendingScans.current.clear();
     };
   }, []);
 
@@ -89,8 +102,25 @@ export function useScannerSession() {
         setStatus("Desktop siap");
         setLastAck("Desktop online. Scanner siap digunakan.");
       }
+      if (event.type === "scan_ack") {
+        const pending = pendingScans.current.get(event.scanId);
+        if (!pending) return;
+        window.clearTimeout(pending.timer);
+        pendingScans.current.delete(event.scanId);
+        pending.resolve(event);
+      }
     });
   }, [disconnect, realtime]);
+
+  useEffect(() => {
+    if (screen !== "scanner" || !realtime.configured || !isValidPairingCode(sessionId)) return;
+    const heartbeat = window.setInterval(() => {
+      void realtime
+        .publish(createClientHeartbeatEvent(sessionId, clientId.current))
+        .catch(() => setStatus("Koneksi tidak stabil"));
+    }, 4000);
+    return () => window.clearInterval(heartbeat);
+  }, [realtime, screen, sessionId]);
 
   useEffect(() => {
     if (screen !== "scanner") return;
@@ -119,7 +149,7 @@ export function useScannerSession() {
       lastDesktopSeenAt.current = 0;
       void realtime
         .connect(sessionId)
-        .then(() => realtime.publish(createClientJoinedEvent(sessionId)))
+        .then(() => realtime.publish(createClientJoinedEvent(sessionId, clientId.current)))
         .then(() => {
           if (cancelled) return;
           setStatus("Terhubung ke relay");
@@ -142,31 +172,62 @@ export function useScannerSession() {
   }, []);
 
   const connectWithCode = useCallback(() => {
+    if (!realtime.configured) {
+      setStatus("Konfigurasi belum siap");
+      setLastAck("Supabase belum dikonfigurasi. Hubungi administrator aplikasi.");
+      showToast("Relay belum dikonfigurasi");
+      return;
+    }
     if (!isValidPairingCode(sessionId)) {
       setStatus("Kode tidak valid");
       setLastAck("Masukkan kode 6 karakter dari ScanBridge Desktop.");
       return;
     }
+    prepareScannerSound();
     storePairingCode(sessionId);
     setScreen("scanner");
-  }, [sessionId]);
+  }, [realtime.configured, sessionId, showToast]);
 
   const submitScan = useCallback(
-    async (value: string) => {
+    async (value: string, symbology?: string): Promise<boolean> => {
       const clean = normalizeBarcode(value);
       if (!isValidScanValue(clean)) {
         setLastAck("Barcode masih kosong.");
-        return;
+        showToast("Barcode tidak boleh kosong");
+        return false;
       }
 
-      const event = createScanEvent(sessionId, { barcode: clean });
-      await realtime.publish(event);
-      setBarcode(clean);
-      setLastAck(`Barcode terkirim: ${clean}`);
-      setStatus("Terhubung ke relay");
-      showToast("Barcode berhasil dikirim");
-      scannerSuccessSound();
-      vibrate();
+      const event = createScanEvent(sessionId, { barcode: clean, symbology });
+      const ackPromise = new Promise<ScanAckEvent>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          pendingScans.current.delete(event.scanId);
+          reject(new Error("Desktop belum mengonfirmasi scan"));
+        }, SCAN_ACK_TIMEOUT_MS);
+        pendingScans.current.set(event.scanId, { resolve, reject, timer });
+      });
+
+      try {
+        await realtime.publish(event);
+        setBarcode(clean);
+        setLastAck(`Menunggu konfirmasi desktop: ${clean}`);
+        const ack = await ackPromise;
+        if (!ack.success) throw new Error(ack.message || "Desktop gagal mengetik barcode");
+        setLastAck(`Berhasil diketik: ${clean}`);
+        setStatus("Desktop siap");
+        showToast("Barcode berhasil diketik");
+        scannerSuccessSound();
+        vibrate();
+        return true;
+      } catch (error) {
+        const pending = pendingScans.current.get(event.scanId);
+        if (pending) window.clearTimeout(pending.timer);
+        pendingScans.current.delete(event.scanId);
+        const message = error instanceof Error ? error.message : "Pengiriman barcode gagal";
+        setLastAck(message);
+        setStatus("Terputus");
+        showToast(message);
+        return false;
+      }
     },
     [realtime, sessionId, showToast]
   );
@@ -176,7 +237,7 @@ export function useScannerSession() {
     try {
       await realtime.disconnect();
       await realtime.connect(sessionId);
-      await realtime.publish(createClientJoinedEvent(sessionId));
+      await realtime.publish(createClientJoinedEvent(sessionId, clientId.current));
       setStatus("Terhubung ke relay");
       setLastAck("Sinyal pairing terkirim. Desktop seharusnya menampilkan mobile terhubung.");
     } catch {
@@ -201,6 +262,7 @@ export function useScannerSession() {
     setManualBarcode,
     lastAck,
     toast,
+    realtimeConfigured: realtime.configured,
     setLastAck,
     submitScan,
     reconnect,

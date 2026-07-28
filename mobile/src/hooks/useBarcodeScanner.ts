@@ -1,5 +1,4 @@
-import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import type { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScanResult } from "../lib/scanner";
 
@@ -13,15 +12,6 @@ function getVideoTrack(video: HTMLVideoElement | null): MediaStreamTrack | null 
   const stream = video?.srcObject instanceof MediaStream ? video.srcObject : null;
   return stream?.getVideoTracks()[0] ?? null;
 }
-
-const SCAN_FORMATS = [
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.UPC_A,
-  BarcodeFormat.UPC_E,
-  BarcodeFormat.QR_CODE
-];
 
 const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
@@ -90,17 +80,29 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
     }
 
     let cancelled = false;
-    if (!readerRef.current) {
-      const hints = new Map<DecodeHintType, BarcodeFormat[]>();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS);
-      readerRef.current = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 20,
-        delayBetweenScanSuccess: 40
-      });
-    }
+    void (async () => {
+      if (!readerRef.current) {
+        const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+          import("@zxing/browser"),
+          import("@zxing/library")
+        ]);
+        if (cancelled) return;
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.QR_CODE
+        ]);
+        readerRef.current = new BrowserMultiFormatReader(hints, {
+          delayBetweenScanAttempts: 20,
+          delayBetweenScanSuccess: 40
+        });
+      }
 
-    void readerRef.current
-      .decodeFromConstraints(
+      const controls = await readerRef.current.decodeFromConstraints(
         CAMERA_CONSTRAINTS,
         video,
         (result: { getText: () => string; getBarcodeFormat: () => { toString: () => string } } | undefined) => {
@@ -121,25 +123,25 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
             symbology: result.getBarcodeFormat().toString()
           });
         }
-      )
-      .then((controls: IScannerControls) => {
-        if (cancelled) {
-          controls.stop();
-          return;
-        }
-        controlsRef.current = controls;
-        setActive(true);
-        const track = getVideoTrack(video);
-        const capabilities = track?.getCapabilities?.() as
-          | (MediaTrackCapabilities & { torch?: boolean })
-          | undefined;
-        setTorchSupported(Boolean(capabilities?.torch));
-        setError(null);
-      })
-      .catch((scanError: unknown) => {
+      );
+      if (cancelled) {
+        controls.stop();
+        return;
+      }
+      controlsRef.current = controls;
+      setActive(true);
+      const track = getVideoTrack(video);
+      const capabilities = track?.getCapabilities?.() as
+        | (MediaTrackCapabilities & { torch?: boolean })
+        | undefined;
+      setTorchSupported(Boolean(capabilities?.torch));
+      setError(null);
+    })().catch((scanError: unknown) => {
+      if (!cancelled) {
         setActive(false);
         setError(scanError instanceof Error ? scanError.message : "Camera scanner failed");
-      });
+      }
+    });
 
     return () => {
       cancelled = true;

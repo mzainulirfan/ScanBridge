@@ -72,7 +72,10 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<AppConfig, String> {
 }
 
 #[tauri::command]
-pub fn update_settings(settings: AppConfig, state: State<'_, AppState>) -> Result<AppConfig, String> {
+pub fn update_settings(
+    settings: AppConfig,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
     app.update_settings(settings)
 }

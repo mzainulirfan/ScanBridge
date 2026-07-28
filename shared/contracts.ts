@@ -1,6 +1,7 @@
 export type RealtimeEventType =
   | "client_joined"
   | "client_left"
+  | "client_heartbeat"
   | "scan"
   | "scan_ack"
   | "desktop_status";
@@ -26,8 +27,15 @@ export interface ClientLeftEvent extends BaseEvent {
   source: "mobile";
 }
 
+export interface ClientHeartbeatEvent extends BaseEvent {
+  type: "client_heartbeat";
+  clientId: string;
+  source: "mobile";
+}
+
 export interface ScanEvent extends BaseEvent {
   type: "scan";
+  scanId: string;
   barcode: string;
   symbology?: string;
   source: ScanSource;
@@ -35,6 +43,7 @@ export interface ScanEvent extends BaseEvent {
 
 export interface ScanAckEvent extends BaseEvent {
   type: "scan_ack";
+  scanId: string;
   barcode: string;
   success: boolean;
   message?: string;
@@ -49,6 +58,7 @@ export interface DesktopStatusEvent extends BaseEvent {
 export type RealtimeEvent =
   | ClientJoinedEvent
   | ClientLeftEvent
+  | ClientHeartbeatEvent
   | ScanEvent
   | ScanAckEvent
   | DesktopStatusEvent;
@@ -56,7 +66,33 @@ export type RealtimeEvent =
 export function isScanEvent(value: unknown): value is ScanEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Partial<ScanEvent>;
-  return event.type === "scan" && typeof event.sessionId === "string" && typeof event.barcode === "string";
+  return (
+    event.type === "scan" &&
+    typeof event.scanId === "string" &&
+    typeof event.sessionId === "string" &&
+    typeof event.barcode === "string" &&
+    event.source === "mobile"
+  );
+}
+
+export function isRealtimeEvent(value: unknown): value is RealtimeEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Partial<RealtimeEvent>;
+  if (
+    typeof event.type !== "string" ||
+    typeof event.sessionId !== "string" ||
+    typeof event.timestamp !== "string"
+  ) {
+    return false;
+  }
+  return [
+    "client_joined",
+    "client_left",
+    "client_heartbeat",
+    "scan",
+    "scan_ack",
+    "desktop_status"
+  ].includes(event.type);
 }
 
 export function buildSessionChannel(sessionId: string): string {
@@ -100,6 +136,16 @@ export function createClientLeftEvent(sessionId: string): ClientLeftEvent {
   return {
     type: "client_left",
     sessionId,
+    timestamp: new Date().toISOString(),
+    source: "mobile"
+  };
+}
+
+export function createClientHeartbeatEvent(sessionId: string, clientId: string): ClientHeartbeatEvent {
+  return {
+    type: "client_heartbeat",
+    sessionId,
+    clientId,
     timestamp: new Date().toISOString(),
     source: "mobile"
   };

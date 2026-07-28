@@ -44,6 +44,8 @@ const activityCountEl = byId<HTMLElement>("activity-count");
 
 let activeChannel: Awaited<ReturnType<typeof subscribeDesktopSession>> | null = null;
 let heartbeatTimer: number | null = null;
+let mobileWatchdogTimer: number | null = null;
+let lastMobileSeenAt = 0;
 let autoHidden = false;
 let currentPairing: PairingInfo | null = null;
 
@@ -106,6 +108,23 @@ function startDesktopHeartbeat() {
   }, 4000);
 }
 
+function markMobileSeen() {
+  lastMobileSeenAt = Date.now();
+}
+
+function startMobileWatchdog() {
+  if (mobileWatchdogTimer !== null) window.clearInterval(mobileWatchdogTimer);
+  mobileWatchdogTimer = window.setInterval(() => {
+    if (lastMobileSeenAt === 0 || Date.now() - lastMobileSeenAt <= 12000) return;
+    lastMobileSeenAt = 0;
+    mobileStatusEl.textContent = "menunggu";
+    mobileStatusEl.dataset.state = "idle";
+    autoHidden = false;
+    void invoke("mark_disconnected").then(() => loadStatus(false));
+    setMessage(summaryMessageEl, "mobile.timeout / siap untuk pairing", "idle");
+  }, 2000);
+}
+
 async function loadStatus(allowAutoHide = true) {
   const result = await invoke<DesktopStatus>("get_status");
   const connected = result.status === "connected";
@@ -144,17 +163,32 @@ async function startRealtime() {
       pairing.sessionId,
       async (event) => {
         lastEventEl.textContent = event.type;
-        if (event.type !== "scan") return;
+        if (event.type !== "scan") return null;
 
         lastScanEl.textContent = event.barcode;
         try {
-          const ack = await invoke<{ success: boolean; message: string }>("receive_scan", { event });
-          setMessage(summaryMessageEl, `scan.berhasil / ${ack.message}`, "success");
+          const ack = await invoke<{
+            type: "scan_ack";
+            scanId: string;
+            sessionId: string;
+            barcode: string;
+            success: boolean;
+            message: string;
+            timestamp: string;
+          }>("receive_scan", { event });
+          setMessage(
+            summaryMessageEl,
+            `${ack.success ? "scan.berhasil" : "scan.gagal"} / ${ack.message}`,
+            ack.success ? "success" : "error"
+          );
+          return ack;
         } catch (error) {
           setMessage(summaryMessageEl, errorMessage(error, "Gagal mengetik barcode."), "error");
+          return null;
         }
       },
       async () => {
+        markMobileSeen();
         mobileStatusEl.textContent = "terhubung";
         mobileStatusEl.dataset.state = "active";
         lastEventEl.textContent = "client_joined";
@@ -163,6 +197,7 @@ async function startRealtime() {
         await broadcastDesktopStatus();
       },
       async () => {
+        lastMobileSeenAt = 0;
         mobileStatusEl.textContent = "menunggu";
         mobileStatusEl.dataset.state = "idle";
         lastEventEl.textContent = "client_left";
@@ -172,12 +207,16 @@ async function startRealtime() {
         setMessage(summaryMessageEl, "mobile.terputus / siap untuk pairing", "idle");
       },
       async () => {
+        markMobileSeen();
+      },
+      async () => {
         relayStatusEl.textContent = "aktif";
         relayStatusEl.dataset.state = "active";
         setMessage(summaryMessageEl, "relay.siap / masukkan kode pairing di mobile", "success");
       }
     );
     startDesktopHeartbeat();
+    startMobileWatchdog();
   } catch (error) {
     relayStatusEl.textContent = "gagal";
     relayStatusEl.dataset.state = "error";
@@ -296,6 +335,10 @@ async function disconnectSession() {
   if (heartbeatTimer !== null) {
     window.clearInterval(heartbeatTimer);
     heartbeatTimer = null;
+  }
+  if (mobileWatchdogTimer !== null) {
+    window.clearInterval(mobileWatchdogTimer);
+    mobileWatchdogTimer = null;
   }
   await invoke("reset_pairing_code");
   window.location.reload();

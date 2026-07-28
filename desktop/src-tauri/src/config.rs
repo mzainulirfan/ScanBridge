@@ -23,3 +23,15 @@ impl Default for AppConfig {
         }
     }
 }
+
+impl AppConfig {
+    pub fn normalized(mut self) -> Self {
+        self.history_limit = self.history_limit.clamp(1, 100);
+        self.prefix = self.prefix.chars().take(64).collect();
+        self.suffix = self.suffix.chars().take(64).collect();
+        if self.auto_enter {
+            self.auto_tab = false;
+        }
+        self
+    }
+}

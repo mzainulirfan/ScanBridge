@@ -3,7 +3,7 @@ use crate::storage::{read_json_or_default, write_json_atomic};
 use std::{io, path::Path};
 
 pub fn load_settings(path: impl AsRef<Path>) -> AppConfig {
-    read_json_or_default(path)
+    read_json_or_default::<AppConfig>(path).normalized()
 }
 
 pub fn save_settings(path: impl AsRef<Path>, settings: &AppConfig) -> io::Result<()> {

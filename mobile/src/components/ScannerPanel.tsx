@@ -14,7 +14,7 @@ type ScannerPanelProps = {
   onTorchToggle: () => void;
   onReconnect: () => void;
   onDisconnect: () => void;
-  onSubmitScan: (value: string) => void;
+  onSubmitScan: (value: string) => Promise<boolean>;
 };
 
 function ScannerPanel({
@@ -46,7 +46,11 @@ function ScannerPanel({
         onTorchToggle={onTorchToggle}
         onReconnect={onReconnect}
         onDisconnect={onDisconnect}
-        onReady={() => onSubmitScan(barcode)}
+        onReady={() => {
+          void onSubmitScan(manualBarcode).then((success) => {
+            if (success) onBarcodeChange("");
+          });
+        }}
       />
       <section className="ack-panel" aria-live="polite">
         <span>aktivitas terakhir</span>

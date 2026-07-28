@@ -1,4 +1,4 @@
-import { buildConnectUrl, buildSessionChannel, normalizeBarcode } from "./contracts";
+import { buildConnectUrl, buildSessionChannel, isRealtimeEvent, normalizeBarcode } from "./contracts.ts";
 
 function expectEqual(actual: unknown, expected: unknown, label: string) {
   if (actual !== expected) {
@@ -19,3 +19,14 @@ expectEqual(
 );
 
 expectEqual(normalizeBarcode("  JP123  "), "JP123", "normalizeBarcode");
+expectEqual(
+  isRealtimeEvent({
+    type: "client_heartbeat",
+    sessionId: "ABC123",
+    clientId: "client-1",
+    timestamp: new Date().toISOString(),
+    source: "mobile"
+  }),
+  true,
+  "isRealtimeEvent"
+);

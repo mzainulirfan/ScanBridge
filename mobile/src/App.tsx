@@ -23,6 +23,7 @@ function App() {
     setManualBarcode,
     lastAck,
     toast,
+    realtimeConfigured,
     submitScan,
     reconnect,
     disconnect
@@ -42,9 +43,9 @@ function App() {
     setInstallPrompt(null);
   };
   const scanner = useBarcodeScanner({
-    enabled: screen === "scanner",
+    enabled: screen === "scanner" && realtimeConfigured,
     onScan: (result) => {
-      void submitScan(result.barcode);
+      void submitScan(result.barcode, result.symbology);
     }
   });
 
@@ -92,7 +93,7 @@ function App() {
             void disconnect();
           }}
           onSubmitScan={(value) => {
-            void submitScan(value);
+            return submitScan(value);
           }}
         />
       )}

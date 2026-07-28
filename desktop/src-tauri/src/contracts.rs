@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct ScanEvent {
     pub r#type: String,
+    pub scan_id: String,
     pub session_id: String,
     pub barcode: String,
     pub symbology: Option<String>,
@@ -15,6 +16,7 @@ pub struct ScanEvent {
 #[serde(rename_all = "camelCase")]
 pub struct ScanAckEvent {
     pub r#type: String,
+    pub scan_id: String,
     pub session_id: String,
     pub barcode: String,
     pub success: bool,
@@ -23,14 +25,21 @@ pub struct ScanAckEvent {
 }
 
 impl ScanAckEvent {
-    pub fn typed(session_id: String, barcode: &str, message: &str) -> Self {
+    pub fn new(
+        scan_id: String,
+        session_id: String,
+        barcode: &str,
+        success: bool,
+        message: &str,
+    ) -> Self {
         Self {
             r#type: "scan_ack".to_string(),
+            scan_id,
             session_id,
             barcode: barcode.to_string(),
-            success: true,
+            success,
             message: message.to_string(),
-            timestamp: "2026-07-27T12:00:00.150Z".to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
         }
     }
 }
@@ -52,7 +61,7 @@ impl DesktopStatusEvent {
             session_id,
             status: status.into(),
             device_count,
-            timestamp: "2026-07-27T12:00:00.000Z".to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
         }
     }
 }

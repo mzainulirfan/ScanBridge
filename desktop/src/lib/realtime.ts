@@ -1,6 +1,6 @@
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
-import type { RealtimeEvent } from "../../../shared/contracts";
-import { buildSessionChannel } from "../../../shared/contracts";
+import type { RealtimeEvent, ScanAckEvent } from "../../../shared/contracts";
+import { buildSessionChannel, isRealtimeEvent, isScanEvent } from "../../../shared/contracts";
 
 type DesktopSupabase = ReturnType<typeof createClient>;
 
@@ -37,16 +37,18 @@ export function createSupabaseDesktopClient(): DesktopSupabase | null {
 export async function subscribeDesktopSession(
   supabase: DesktopSupabase,
   sessionId: string,
-  onScan: (event: RealtimeEvent) => Promise<void>,
+  onScan: (event: RealtimeEvent) => Promise<ScanAckEvent | null>,
   onConnected: () => Promise<void>,
   onDisconnected: () => Promise<void>,
+  onHeartbeat: () => Promise<void>,
   onSubscribed?: () => Promise<void>
 ): Promise<RealtimeChannel> {
   const channel = supabase.channel(buildSessionChannel(sessionId), {
     config: { broadcast: { self: true } }
   });
 
-  channel.on("broadcast", { event: "client_joined" }, async () => {
+  channel.on("broadcast", { event: "client_joined" }, async (payload) => {
+    if (!isRealtimeEvent(payload.payload)) return;
     await onConnected();
   });
 
@@ -54,8 +56,20 @@ export async function subscribeDesktopSession(
     await onDisconnected();
   });
 
+  channel.on("broadcast", { event: "client_heartbeat" }, async (payload) => {
+    if (!isRealtimeEvent(payload.payload)) return;
+    await onHeartbeat();
+  });
+
   channel.on("broadcast", { event: "scan" }, async (payload) => {
-    await onScan(payload.payload as RealtimeEvent);
+    if (!isScanEvent(payload.payload) || payload.payload.sessionId !== sessionId) return;
+    const ack = await onScan(payload.payload);
+    if (!ack) return;
+    await channel.send({
+      type: "broadcast",
+      event: "scan_ack",
+      payload: ack
+    });
   });
 
   await new Promise<void>((resolve, reject) => {

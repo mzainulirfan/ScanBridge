@@ -9,6 +9,7 @@
     "dev:mobile": "npm --workspace mobile run dev",
     "build:mobile": "npm --workspace mobile run build",
     "typecheck:mobile": "npm --workspace mobile run typecheck",
+    "test:contracts": "node --experimental-strip-types shared/contracts.test.ts",
     "dev:desktop": "npm --workspace desktop run dev",
     "build:desktop-frontend": "npm --workspace desktop run frontend:build"
   }
