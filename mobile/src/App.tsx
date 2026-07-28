@@ -79,6 +79,7 @@ function App() {
           manualBarcode={manualBarcode}
           active={scanner.active}
           error={scanner.error}
+          toast={toast}
           videoRef={scanner.videoRef}
           torchSupported={scanner.torchSupported}
           torchEnabled={scanner.torchEnabled}
