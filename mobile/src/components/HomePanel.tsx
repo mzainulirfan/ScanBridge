@@ -22,21 +22,29 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect }: HomePanelPro
         <label className="label" htmlFor="pairing-code">
           kode pairing
         </label>
-        <input
-          id="pairing-code"
-          ref={pairingInputRef}
-          inputMode="numeric"
-          pattern="[0-9]*"
-          autoCapitalize="off"
-          autoComplete="one-time-code"
-          maxLength={6}
-          placeholder="123456"
-          value={pairingCode}
-          onChange={(event) => onPairingCodeChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") onConnect();
-          }}
-        />
+        <div className="pairing-code-entry">
+          <div className="pairing-code-block" aria-hidden="true">
+            {pairingCode.slice(0, 3).padEnd(3, "-")}
+          </div>
+          <div className="pairing-code-block" aria-hidden="true">
+            {pairingCode.slice(3, 6).padEnd(3, "-")}
+          </div>
+          <input
+            id="pairing-code"
+            ref={pairingInputRef}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoCapitalize="off"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={pairingCode}
+            onChange={(event) => onPairingCodeChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onConnect();
+            }}
+            aria-label="Kode pairing 6 digit"
+          />
+        </div>
         <button className="primary" onClick={onConnect} type="button">
           [connect]
         </button>
