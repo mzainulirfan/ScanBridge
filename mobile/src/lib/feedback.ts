@@ -1,21 +1,40 @@
-export function beep(): void {
+let audioContext: AudioContext | null = null;
+
+export function scannerSuccessSound(): void {
   const AudioContextCtor = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextCtor) {
     return;
   }
 
-  const context = new AudioContextCtor();
-  const oscillator = context.createOscillator();
+  audioContext ??= new AudioContextCtor();
+  const context = audioContext;
+  void context.resume();
+
   const gain = context.createGain();
+  const firstTone = context.createOscillator();
+  const secondTone = context.createOscillator();
+  const start = context.currentTime;
+  const firstEnd = start + 0.045;
+  const secondEnd = start + 0.115;
 
-  oscillator.type = "sine";
-  oscillator.frequency.value = 880;
-  gain.gain.value = 0.05;
+  firstTone.type = "triangle";
+  firstTone.frequency.setValueAtTime(1850, start);
+  secondTone.type = "triangle";
+  secondTone.frequency.setValueAtTime(1450, firstEnd);
 
-  oscillator.connect(gain);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(0.12, start + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, firstEnd);
+  gain.gain.exponentialRampToValueAtTime(0.1, firstEnd + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, secondEnd);
+
+  firstTone.connect(gain);
+  secondTone.connect(gain);
   gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.08);
+  firstTone.start(start);
+  firstTone.stop(firstEnd);
+  secondTone.start(firstEnd);
+  secondTone.stop(secondEnd);
 }
 
 export function vibrate(pattern: number | number[] = 120): void {

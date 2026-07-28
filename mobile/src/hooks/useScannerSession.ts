@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { beep, vibrate } from "../lib/feedback";
+import { scannerSuccessSound, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
 import {
@@ -127,7 +127,7 @@ export function useScannerSession() {
       setBarcode(clean);
       setLastAck(`Published ${clean}`);
       setStatus("Connected to relay");
-      beep();
+      scannerSuccessSound();
       vibrate();
     },
     [realtime, sessionId]
