@@ -23,6 +23,16 @@ use tauri::{
 
 fn main() {
     tauri::Builder::default()
+        // Register before other plugins and before loading the shared pairing session.
+        // Installed and development builds use the same app identifier and lock.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.emit("tray-opened", ());
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
