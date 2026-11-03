@@ -1,4 +1,4 @@
-const CACHE_NAME = "scanbridge-shell-v0.1.4";
+const CACHE_NAME = "scanbridge-shell-mobile-v0.1.5";
 const APP_SHELL = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

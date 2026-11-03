@@ -27,7 +27,8 @@ function createScanId(): string {
 }
 
 export function isValidScanValue(value: string): boolean {
-  return normalizeBarcode(value).length > 0;
+  const length = Array.from(normalizeBarcode(value)).length;
+  return length > 0 && length <= 256;
 }
 
 export function nextScanAllowedAt(previousAt: number, cooldownMs: number): number {

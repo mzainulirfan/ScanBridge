@@ -269,6 +269,8 @@ test("desktop typing failure keeps the healthy connection available", async () =
   assert.equal(session.result.screen, "scanner");
   assert.equal(session.result.status, "Desktop siap");
   assert.equal(session.result.lastAck, "Keyboard busy");
+  assert.equal(session.result.scanOutcome.state, "error");
+  assert.equal(session.result.toastTone, "error");
 });
 
 test("unpaired scans never enter the relay", async () => {
@@ -284,6 +286,44 @@ test("reset during a pending scan keeps the reset status and does not reconnect"
   assert.equal(await pending, false);
   assert.equal(session.result.status, "Siap pairing");
   assert.equal(session.storedCode, null);
+  assert.equal(session.result.scanOutcome, null);
   await session.advance(20000);
   assert.equal(session.relay.connects, 1);
+});
+
+test("scan result is pending until the desktop confirms successful typing", async () => {
+  const session = await pairedSession();
+  const pending = session.result.submitScan("899123"); await session.flush();
+  assert.equal(session.result.scanOutcome.state, "pending");
+  const scan = session.relay.published.find(event => event.type === "scan");
+  session.relay.handler({ type: "scan_ack", sessionId: code, scanId: scan.scanId,
+    barcode: "899123", success: true, timestamp: new Date().toISOString() });
+  assert.equal(await pending, true); await session.flush();
+  assert.equal(session.result.scanOutcome.state, "success");
+  assert.equal(session.result.toastTone, "success");
+});
+
+test("unconfirmed scan is shown as uncertain rather than successful", async () => {
+  const session = await pairedSession();
+  const pending = session.result.submitScan("899123"); await session.flush();
+  session.relay.peerLeftHandler(); await session.flush();
+  assert.equal(await pending, false); await session.flush();
+  assert.equal(session.result.scanOutcome.state, "error");
+  assert.match(session.result.scanOutcome.message, /Periksa kolom tujuan/);
+});
+
+test("oversized barcode is rejected locally without losing the desktop connection", async () => {
+  const session = await pairedSession();
+  assert.equal(await session.result.submitScan("X".repeat(257)), false); await session.flush();
+  assert.equal(session.relay.published.some(event => event.type === "scan"), false);
+  assert.match(session.result.lastAck, /256 karakter/);
+  assert.equal(session.result.toastTone, "error");
+  assert.equal(session.result.screen, "scanner");
+});
+
+test("barcode limit counts Unicode characters the same way as the desktop", () => {
+  const { isValidScanValue } = loadSource("mobile/src/lib/scanner.ts", { "../shared/contracts": contracts });
+  assert.equal(isValidScanValue("😀".repeat(256)), true);
+  assert.equal(isValidScanValue("😀".repeat(257)), false);
+  assert.equal(isValidScanValue("  "), false);
 });

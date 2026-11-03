@@ -42,6 +42,7 @@ export function useBarcodeScanner({
   const [pausedForInactivity, setPausedForInactivity] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -71,7 +72,9 @@ export function useBarcodeScanner({
   const resume = useCallback(() => {
     setError(null);
     setPausedForInactivity(false);
-  }, []);
+    setCameraAttempt(attempt => attempt + 1);
+    resetIdleTimer();
+  }, [resetIdleTimer]);
 
   const toggleTorch = useCallback(async () => {
     const track = getVideoTrack(videoRef.current);
@@ -175,7 +178,7 @@ export function useBarcodeScanner({
       cancelled = true;
       stop();
     };
-  }, [cooldownMs, enabled, pausedForInactivity, resetIdleTimer, stop]);
+  }, [cameraAttempt, cooldownMs, enabled, pausedForInactivity, resetIdleTimer, stop]);
 
   useEffect(() => {
     if (!enabled || pausedForInactivity) {

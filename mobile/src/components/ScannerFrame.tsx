@@ -1,166 +1,51 @@
-type ScannerFrameProps = {
-  lastScan: string;
-  manualBarcode: string;
-  active: boolean;
-  pausedForInactivity: boolean;
-  error?: string | null;
-  toast?: string;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  torchSupported: boolean;
-  torchEnabled: boolean;
-  onBarcodeChange: (value: string) => void;
-  onTorchToggle: () => void;
-  onResumeCamera: () => void;
-  onReconnect: () => void;
-  onResetPairing: () => void;
-  onDisconnect: () => void;
-  onReady: () => void;
+import { useRef, type RefObject } from "react";
+import type { ScanOutcome } from "../hooks/useScannerSession";
+import Icon from "./Icon";
+
+export type ScannerFrameProps = {
+  barcode: string; scanOutcome: ScanOutcome | null; manualBarcode: string; manualMode: boolean;
+  active: boolean; pausedForInactivity: boolean; error?: string | null; toast?: string; toastTone: "idle" | "success" | "error";
+  videoRef: RefObject<HTMLVideoElement>; torchSupported: boolean; torchEnabled: boolean;
+  onBarcodeChange: (value: string) => void; onTorchToggle: () => void; onResumeCamera: () => void;
+  onManageConnection: () => void; onManualModeChange: (manual: boolean) => void; onReady: () => void;
 };
 
-function ScannerFrame({
-  lastScan,
-  manualBarcode,
-  active,
-  pausedForInactivity,
-  error,
-  toast,
-  videoRef,
-  torchSupported,
-  torchEnabled,
-  onBarcodeChange,
-  onTorchToggle,
-  onResumeCamera,
-  onReconnect,
-  onResetPairing,
-  onDisconnect,
-  onReady
+export default function ScannerFrame({ barcode, scanOutcome, manualBarcode, manualMode,
+  active, pausedForInactivity, error, toast, toastTone, videoRef, torchSupported, torchEnabled,
+  onBarcodeChange, onTorchToggle, onResumeCamera, onManageConnection, onManualModeChange, onReady
 }: ScannerFrameProps) {
   const swipeStartY = useRef<number | null>(null);
-
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    swipeStartY.current = event.clientY;
-  }
-
-  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    const startY = swipeStartY.current;
-    swipeStartY.current = null;
-    if (startY === null || !torchSupported) return;
-
-    const deltaY = event.clientY - startY;
-    if (Math.abs(deltaY) < 45) return;
-    const shouldEnable = deltaY < 0;
-    if (shouldEnable !== torchEnabled) {
-      onTorchToggle();
-    }
-  }
-
+  const pending = scanOutcome?.state === "pending";
+  const resultState = scanOutcome?.state ?? "idle";
+  const time = scanOutcome?.timestamp ? new Date(scanOutcome.timestamp) : null;
   return (
-    <section className="scanner">
-      <div className="scanner-heading">
-        <span className="section-label">[kamera scanner]</span>
-        <span className={active ? "live-indicator active" : "live-indicator"}>
-          {active ? "aktif" : pausedForInactivity ? "hemat baterai" : "menyiapkan"}
-        </span>
-      </div>
-      <div
-        className="camera-frame"
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={() => {
-          swipeStartY.current = null;
-        }}
-      >
-        <video
-          ref={videoRef}
-          className="camera-video"
-          muted
-          playsInline
-          aria-label="Pratinjau kamera scanner barcode"
-        />
-        <div className="camera-tools">
-          {toast && (
-            <span className="camera-toast" role="status" aria-live="polite">
-              <span aria-hidden="true">[x]</span>
-              {toast}
-            </span>
-          )}
-          <button
-            className={torchEnabled ? "camera-torch active" : "camera-torch"}
-            disabled={!active || !torchSupported}
-            onClick={onTorchToggle}
-            aria-pressed={torchEnabled}
-            aria-label={torchEnabled ? "Matikan senter" : "Nyalakan senter"}
-            title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak didukung kamera ini"}
-            type="button"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path d="M18 2H6c-.55 0-1 .45-1 1v5c0 1.86 1.28 3.43 3 3.87V21c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-9.13c1.72-.44 3-2.01 3-3.87V3c0-.55-.45-1-1-1m-1 2v1H7V4zm-2 6c-.55 0-1 .45-1 1v9h-4v-9c0-.55-.45-1-1-1-1.1 0-2-.9-2-2V7h10v1c0 1.1-.9 2-2 2" />
-              <path d="M11.5 10h1v3h-1z" />
-            </svg>
-          </button>
-        </div>
-        <div className="scan-guide" aria-hidden="true">
-          <span />
-        </div>
-        {!active && (
-          <div className="camera-placeholder">
-            {pausedForInactivity ? (
-              <>
-                <span>Kamera dimatikan setelah 10 detik tidak digunakan.</span>
-                <button className="primary camera-resume" onClick={onResumeCamera} type="button">
-                  [nyalakan kamera]
-                </button>
-              </>
-            ) : (
-              "Meminta akses kamera..."
-            )}
-          </div>
-        )}
-      </div>
-      {error && (
-        <div className="error-box" role="alert">
-          [!] Kamera belum siap: {error}
-        </div>
-      )}
-      <div className="scan-meta">
-        <div>
-          <span>scan terakhir</span>
-          <strong>{lastScan || "menunggu..."}</strong>
-        </div>
-      </div>
-      <div className="manual-row">
-        <input
-          aria-label="Barcode manual"
-          value={manualBarcode}
-          onChange={(event) => onBarcodeChange(event.target.value)}
-          placeholder="barcode manual"
-        />
-        <button className="primary" onClick={onReady} type="button">
-          [kirim]
-        </button>
-      </div>
-      <div className="action-row">
-        <button className="secondary" onClick={onReconnect} type="button">
-          [sambungkan ulang]
-        </button>
-        <button className="secondary" onClick={onResetPairing} type="button">
-          [reset kode]
-        </button>
-        <button className="danger" onClick={onDisconnect} type="button">
-          [putuskan]
-        </button>
-      </div>
+    <section className="scanner" data-manual={manualMode}>
+      <div className="scanner-heading"><div><p className="eyebrow">SCANNER MOBILE</p><h2>{manualMode ? "Input barcode" : "Pindai barcode"}</h2></div><button className="secondary connection-button" onClick={onManageConnection} type="button"><Icon name="link" />Koneksi</button></div>
+      <div className="scan-mode-switch" aria-label="Cara memasukkan barcode"><button className={!manualMode ? "selected" : ""} aria-pressed={!manualMode} onClick={() => onManualModeChange(false)} type="button"><Icon name="camera" />Kamera</button><button className={manualMode ? "selected" : ""} aria-pressed={manualMode} onClick={() => onManualModeChange(true)} type="button"><Icon name="keyboard" />Input manual</button></div>
+      {manualMode ? <form className="card manual-panel" onSubmit={event => { event.preventDefault(); onReady(); }}>
+        <div className="card-heading"><span className="card-icon"><Icon name="keyboard" /></span><div><h3>Ketik atau tempel barcode</h3><p>Gunakan saat barcode sulit dipindai.</p></div></div>
+        <label htmlFor="manual-barcode">Barcode</label><input id="manual-barcode" aria-describedby="manual-help" value={manualBarcode} onChange={event => onBarcodeChange(event.target.value)} maxLength={256} disabled={pending} autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder="Contoh: 8991234567890" />
+        <p id="manual-help" className="field-help">Maksimal 256 karakter. Dikirim ke desktop yang terhubung.</p>
+        <button className="primary" disabled={pending || !manualBarcode.trim()} type="submit">{pending ? <><Icon name="refresh" className="spinning" />Menunggu konfirmasi…</> : <>Kirim ke komputer<Icon name="arrow" /></>}</button>
+      </form> : <div className="camera-frame" data-active={active} onPointerDown={event => { if ((event.target as HTMLElement).closest("button")) return; swipeStartY.current = event.clientY; }} onPointerUp={event => {
+        const start = swipeStartY.current; swipeStartY.current = null;
+        if (start === null || !torchSupported || !active) return;
+        const delta = event.clientY - start;
+        if (Math.abs(delta) >= 45 && (delta < 0) !== torchEnabled) onTorchToggle();
+      }} onPointerCancel={() => { swipeStartY.current = null; }}>
+        <video ref={videoRef} className="camera-video" muted playsInline aria-label="Pratinjau kamera scanner barcode" />
+        <div className="camera-tools"><span className="camera-state" data-state={active ? "active" : "idle"}><span className="status-dot" />{active ? "Kamera aktif" : pausedForInactivity ? "Hemat baterai" : error ? "Kamera belum aktif" : "Menyiapkan"}</span><button className="camera-torch" data-active={torchEnabled} disabled={!active || !torchSupported} onClick={onTorchToggle} aria-pressed={torchEnabled} aria-label={torchEnabled ? "Matikan senter" : "Nyalakan senter"} title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak tersedia pada kamera ini"} type="button"><Icon name="flash" /></button></div>
+        {active && <><div className="scan-guide" aria-hidden="true"><i /><i /><i /><i /><span className="scan-line" /></div><div className="camera-caption"><strong>Sejajarkan barcode dalam bingkai</strong><span>EAN · CODE128 · QR</span></div></>}
+        {!active && <div className="camera-placeholder"><Icon name={error ? "alert" : "camera"} /><strong>{error ? "Kamera belum dapat dipakai" : pausedForInactivity ? "Kamera dijeda" : "Menyiapkan kamera"}</strong><p>{error ? "Izinkan akses kamera di browser atau gunakan input manual." : pausedForInactivity ? "Tidak ada scan selama 10 detik. Aktifkan kembali saat siap." : "Izinkan akses kamera untuk mulai memindai barcode."}</p>{(pausedForInactivity || error) && <button className="camera-resume" onClick={onResumeCamera} type="button">{error ? "Coba kamera lagi" : "Nyalakan kamera"}</button>}</div>}
+        {toast && <span className="camera-toast" data-state={toastTone} role="status">{toast}</span>}
+      </div>}
+      {error && !manualMode && <p className="error-message" role="alert">{error}</p>}
+      <section className="card scan-result" data-state={resultState} aria-labelledby="last-scan-heading" aria-live="polite">
+        <div className="result-heading"><h3 id="last-scan-heading">Scan terakhir</h3><span className="result-badge" data-state={resultState}>{pending ? <Icon name="refresh" className="spinning" /> : scanOutcome?.state === "success" ? <Icon name="check" /> : scanOutcome?.state === "error" ? <Icon name="alert" /> : null}{pending ? "Menunggu" : scanOutcome?.state === "success" ? "Berhasil diketik" : scanOutcome?.state === "error" ? "Perlu diperiksa" : "Belum ada scan"}</span></div>
+        <strong className="last-barcode">{scanOutcome?.barcode || barcode || "—"}</strong>
+        <p className="result-message">{scanOutcome?.message || "Hasil scan muncul setelah barcode terbaca."}{time && !Number.isNaN(time.getTime()) && <time dateTime={scanOutcome?.timestamp}>{time.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</time>}</p>
+      </section>
+      <p className="destination-note"><Icon name="monitor" />Pilih kolom tujuan di komputer sebelum memindai.</p>
     </section>
   );
 }
-
-export default ScannerFrame;
-import { useRef } from "react";

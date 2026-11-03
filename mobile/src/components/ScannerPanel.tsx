@@ -1,69 +1,13 @@
-import ScannerFrame from "./ScannerFrame";
-import type { RefObject } from "react";
+import ScannerFrame, { type ScannerFrameProps } from "./ScannerFrame";
 
-type ScannerPanelProps = {
-  barcode: string;
-  manualBarcode: string;
-  active: boolean;
-  pausedForInactivity: boolean;
-  error?: string | null;
-  toast?: string;
-  videoRef: RefObject<HTMLVideoElement>;
-  torchSupported: boolean;
-  torchEnabled: boolean;
-  onBarcodeChange: (value: string) => void;
-  onTorchToggle: () => void;
-  onResumeCamera: () => void;
-  onReconnect: () => void;
-  onResetPairing: () => void;
-  onDisconnect: () => void;
+type ScannerPanelProps = Omit<ScannerFrameProps, "onReady"> & {
   onSubmitScan: (value: string) => Promise<boolean>;
 };
 
-function ScannerPanel({
-  barcode,
-  manualBarcode,
-  active,
-  pausedForInactivity,
-  error,
-  toast,
-  videoRef,
-  torchSupported,
-  torchEnabled,
-  onBarcodeChange,
-  onTorchToggle,
-  onResumeCamera,
-  onReconnect,
-  onResetPairing,
-  onDisconnect,
-  onSubmitScan
-}: ScannerPanelProps) {
-  return (
-    <>
-      <ScannerFrame
-        lastScan={barcode}
-        manualBarcode={manualBarcode}
-        active={active}
-        pausedForInactivity={pausedForInactivity}
-        error={error}
-        toast={toast}
-        videoRef={videoRef}
-        torchSupported={torchSupported}
-        torchEnabled={torchEnabled}
-        onBarcodeChange={onBarcodeChange}
-        onTorchToggle={onTorchToggle}
-        onResumeCamera={onResumeCamera}
-        onReconnect={onReconnect}
-        onResetPairing={onResetPairing}
-        onDisconnect={onDisconnect}
-        onReady={() => {
-          void onSubmitScan(manualBarcode).then((success) => {
-            if (success) onBarcodeChange("");
-          });
-        }}
-      />
-    </>
-  );
+export default function ScannerPanel({ onSubmitScan, ...props }: ScannerPanelProps) {
+  return <ScannerFrame {...props} onReady={() => {
+    void onSubmitScan(props.manualBarcode).then(success => {
+      if (success) props.onBarcodeChange("");
+    });
+  }} />;
 }
-
-export default ScannerPanel;

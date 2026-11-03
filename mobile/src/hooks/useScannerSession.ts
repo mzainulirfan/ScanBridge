@@ -23,6 +23,7 @@ import {
 } from "../shared/contracts";
 
 export type ScannerState = "home" | "connect" | "scanner";
+export type ScanOutcome = { barcode: string; state: "pending" | "success" | "error"; message: string; timestamp?: string };
 const PAIRING_CONFIRM_TIMEOUT_MS = 10000;
 const AUTO_RECONNECT_DELAY_MS = 5000;
 const SCAN_ACK_TIMEOUT_MS = 5000;
@@ -41,9 +42,11 @@ export function useScannerSession() {
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [status, setStatus] = useState<string>(initialSessionId ? "Menghubungkan" : "Siap pairing");
   const [barcode, setBarcode] = useState("");
+  const [scanOutcome, setScanOutcome] = useState<ScanOutcome | null>(null);
   const [manualBarcode, setManualBarcode] = useState("");
   const [lastAck, setLastAck] = useState<string>("");
   const [toast, setToast] = useState("");
+  const [toastTone, setToastTone] = useState<"idle" | "success" | "error">("idle");
   const [realtime] = useState(() => createRealtimeClient());
   const clientId = useRef(getOrCreateStoredClientId());
   const resumeAttempt = useRef(Boolean(initialSessionId));
@@ -56,8 +59,9 @@ export function useScannerSession() {
     new Map<string, { resolve: (ack: ScanAckEvent) => void; reject: (error: Error) => void; timer: number }>()
   );
 
-  const showToast = useCallback((message: string) => {
+  const showToast = useCallback((message: string, tone: "idle" | "success" | "error" = "idle") => {
     setToast(message);
+    setToastTone(tone);
     if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => {
       setToast("");
@@ -119,7 +123,7 @@ export function useScannerSession() {
     setScreen("home");
     setStatus(message);
     setLastAck("Pairing tetap tersimpan. Akan tersambung kembali saat kedua perangkat aktif dan online.");
-    showToast(message);
+    showToast(message, "error");
     scheduleAutoReconnect();
   }, [rejectPendingScans, scheduleAutoReconnect, showToast]);
 
@@ -136,6 +140,7 @@ export function useScannerSession() {
       setSessionId("");
       setPairingPending(false);
       setBarcode("");
+      setScanOutcome(null);
       setLastAck("");
       lastDesktopSeenAt.current = 0;
       if (pairingTimer.current !== null) {
@@ -355,7 +360,7 @@ export function useScannerSession() {
     if (!realtime.configured) {
       setStatus("Konfigurasi belum siap");
       setLastAck("Supabase belum dikonfigurasi. Hubungi administrator aplikasi.");
-      showToast("Relay belum dikonfigurasi");
+      showToast("Relay belum dikonfigurasi", "error");
       return;
     }
     if (!isValidPairingCode(nextSessionId)) {
@@ -376,13 +381,14 @@ export function useScannerSession() {
   const submitScan = useCallback(
     async (value: string, symbology?: string): Promise<boolean> => {
       if (!paired.current || screen !== "scanner" || !isValidPairingCode(sessionId)) {
-        showToast("Hubungkan desktop sebelum mengirim barcode");
+        showToast("Hubungkan desktop sebelum mengirim barcode", "error");
         return false;
       }
       const clean = normalizeBarcode(value);
       if (!isValidScanValue(clean)) {
-        setLastAck("Barcode masih kosong.");
-        showToast("Barcode tidak boleh kosong");
+        const message = clean ? "Barcode maksimal 256 karakter." : "Barcode tidak boleh kosong.";
+        setLastAck(message);
+        showToast(message, "error");
         return false;
       }
 
@@ -398,14 +404,16 @@ export function useScannerSession() {
       let acknowledged = false;
       try {
         setBarcode(clean);
+        setScanOutcome({ barcode: clean, state: "pending", message: "Menunggu konfirmasi komputer…" });
         setLastAck(`Menunggu konfirmasi desktop: ${clean}`);
         const [, ack] = await Promise.all([realtime.publish(event), ackPromise]);
         if (!paired.current) return false;
         acknowledged = true;
         if (!ack.success) throw new Error(ack.message || "Desktop gagal mengetik barcode");
         setLastAck(`Berhasil diketik: ${clean}`);
+        setScanOutcome({ barcode: ack.barcode, state: "success", message: "Berhasil diketik di komputer.", timestamp: ack.timestamp });
         setStatus("Desktop siap");
-        showToast("Barcode berhasil diketik");
+        showToast("Barcode berhasil diketik", "success");
         scannerSuccessSound();
         vibrate();
         return true;
@@ -415,10 +423,11 @@ export function useScannerSession() {
         pendingScans.current.delete(event.scanId);
         if (!resumeAttempt.current && !paired.current) return false;
         const message = error instanceof Error ? error.message : "Pengiriman barcode gagal";
+        setScanOutcome({ barcode: clean, state: "error", message: acknowledged ? message : "Konfirmasi belum diterima. Periksa kolom tujuan sebelum mengirim ulang." });
         if (!acknowledged) connectionLost("Desktop tidak merespons");
         setLastAck(message);
         if (acknowledged) setStatus("Desktop siap");
-        showToast(message);
+        showToast(message, "error");
         return false;
       }
     },
@@ -441,14 +450,18 @@ export function useScannerSession() {
     updateSessionId,
     connectWithCode,
     pairingCode: sessionId,
+    pairingPending,
+    pairingSaved: resumeAttempt.current,
     status,
     setStatus,
     barcode,
+    scanOutcome,
     setBarcode,
     manualBarcode,
     setManualBarcode,
     lastAck,
     toast,
+    toastTone,
     realtimeConfigured: realtime.configured,
     setLastAck,
     submitScan,

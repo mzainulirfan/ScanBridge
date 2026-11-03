@@ -4,9 +4,9 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#fdfcfc",
-  "theme_color": "#fdfcfc",
-  "description": "Scan barcodes from your phone to ScanBridge Desktop.",
+  "background_color": "#f5f6f3",
+  "theme_color": "#f5f6f3",
+  "description": "Pindai barcode dari ponsel dan ketik langsung ke aplikasi di komputer.",
   "icons": [
     {
       "src": "/icons/icon-192.png",
