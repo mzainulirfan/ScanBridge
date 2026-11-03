@@ -14,6 +14,19 @@ export function getSessionFromLocation(location = window.location): string | nul
   return match?.[1] ? decodeURIComponent(match[1]).trim() : null;
 }
 
+export function getPairingCodeFromScan(value: string): string | null {
+  const directCode = normalizePairingCode(value);
+  if (isValidPairingCode(directCode)) return directCode;
+
+  try {
+    const url = new URL(value);
+    const session = normalizePairingCode(url.searchParams.get("session") ?? "");
+    return isValidPairingCode(session) ? session : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getStoredPairingCode(storage?: Storage): string | null {
   try {
     const pairingCode = normalizePairingCode((storage ?? window.localStorage).getItem(PAIRING_CODE_STORAGE_KEY) ?? "");
@@ -45,8 +58,8 @@ export function clearStoredPairingCode(storage?: Storage): void {
 }
 
 export function getOrCreateStoredClientId(storage?: Storage): string {
-  const target = storage ?? window.localStorage;
   try {
+    const target = storage ?? window.localStorage;
     const stored = target.getItem(CLIENT_ID_STORAGE_KEY)?.trim();
     if (stored) return stored;
     const clientId =

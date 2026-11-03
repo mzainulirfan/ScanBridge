@@ -3,54 +3,98 @@ type HomePanelProps = {
   onPairingCodeChange: (value: string) => void;
   onConnect: (value?: string) => void;
   onResetPairing: () => void;
+  pairingScanMode: boolean;
+  pairingScanActive: boolean;
+  pairingScanPaused: boolean;
+  pairingScanError: string;
+  pairingConnectionMessage: string;
+  pairingVideoRef: RefObject<HTMLVideoElement>;
+  onStartPairingScan: () => void;
+  onCancelPairingScan: () => void;
+  onResumePairingScan: () => void;
 };
 
-function HomePanel({ pairingCode, onPairingCodeChange, onConnect, onResetPairing }: HomePanelProps) {
+function HomePanel({
+  pairingCode,
+  onPairingCodeChange,
+  onConnect,
+  onResetPairing,
+  pairingScanMode,
+  pairingScanActive,
+  pairingScanPaused,
+  pairingScanError,
+  pairingConnectionMessage,
+  pairingVideoRef,
+  onStartPairingScan,
+  onCancelPairingScan,
+  onResumePairingScan
+}: HomePanelProps) {
   const pairingInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (pairingScanMode) return;
     pairingInputRef.current?.focus();
     const focusTimer = window.setTimeout(() => pairingInputRef.current?.focus(), 120);
     return () => window.clearTimeout(focusTimer);
-  }, []);
+  }, [pairingScanMode]);
 
   return (
     <>
       <section className="intro">
         <span className="section-label">[pair device]</span>
         <h2>Ponsel Anda menjadi scanner.</h2>
-        <p>Masukkan 6 angka dari ScanBridge Desktop.</p>
+        <p>Scan QR dari ScanBridge Desktop, atau masukkan kode pairing.</p>
       </section>
       <section className="pairing-panel">
+        {!pairingScanMode && (
+          <button className="primary pairing-scan-button" onClick={onStartPairingScan} type="button">
+            [scan QR desktop]
+          </button>
+        )}
+        {pairingScanMode && (
+          <div className="pairing-camera">
+            <video ref={pairingVideoRef} className="camera-video" muted playsInline aria-label="Kamera untuk scan QR pairing" />
+            <div className="scan-guide pairing-scan-guide" aria-hidden="true"><span /></div>
+            {!pairingScanActive && (
+              <div className="camera-placeholder">
+                {pairingScanPaused ? (
+                  <button className="primary camera-resume" onClick={onResumePairingScan} type="button">[nyalakan kamera]</button>
+                ) : "Meminta akses kamera..."}
+              </div>
+            )}
+            <button className="secondary pairing-cancel" onClick={onCancelPairingScan} type="button">[batal]</button>
+          </div>
+        )}
+        {pairingScanError && <p className="pairing-scan-error" role="alert">[!] {pairingScanError}</p>}
+        {pairingConnectionMessage && (
+          <p className="pairing-connection-message" role="status">{pairingConnectionMessage}</p>
+        )}
         <label className="label" htmlFor="pairing-code">
           kode pairing
         </label>
         <div className="pairing-code-entry">
           <div className="pairing-code-block" aria-hidden="true">
-            {pairingCode.slice(0, 3).padEnd(3, "-")}
-          </div>
-          <div className="pairing-code-block" aria-hidden="true">
-            {pairingCode.slice(3, 6).padEnd(3, "-")}
+            {formatPairingCode(pairingCode) || "-------- -------- -------- --------"}
           </div>
           <input
             id="pairing-code"
             ref={pairingInputRef}
             autoFocus
-            inputMode="numeric"
-            pattern="[0-9]*"
+            inputMode="text"
+            pattern="[A-Fa-f0-9]*"
             autoCapitalize="off"
             autoComplete="one-time-code"
-            maxLength={6}
+            maxLength={32}
             value={pairingCode}
             onChange={(event) => {
-              const value = event.target.value.replace(/\D/g, "").slice(0, 6);
+              const value = event.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32).toUpperCase();
               onPairingCodeChange(value);
-              if (value.length === 6) onConnect(value);
+              if (value.length === 32) onConnect(value);
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") onConnect();
             }}
-            aria-label="Kode pairing 6 digit"
+            aria-label="Kode pairing 32 karakter"
           />
         </div>
         <div className="pairing-actions">
@@ -70,4 +114,5 @@ function HomePanel({ pairingCode, onPairingCodeChange, onConnect, onResetPairing
 }
 
 export default HomePanel;
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
+import { formatPairingCode } from "../shared/contracts";

@@ -1,11 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import QRCode from "qrcode";
 import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
 import "./styles.css";
 
 type TabName = "summary" | "output" | "activity";
-type PairingInfo = { sessionId: string; hasTrustedClient: boolean };
-type DesktopStatus = { status: string };
+type PairingInfo = { sessionId: string; pairingUrl: string; hasTrustedClient: boolean };
+type DesktopStatus = { status: string; clientId?: string };
 type DesktopSettings = {
   autoEnter: boolean;
   autoTab: boolean;
@@ -31,6 +34,7 @@ const lastScanEl = byId<HTMLElement>("last-scan");
 const sessionStateEl = byId<HTMLElement>("session-state");
 const pairingCodeEl = byId<HTMLElement>("pairing-code");
 const pairingUrlEl = byId<HTMLElement>("pairing-url");
+const pairingQrEl = byId<HTMLImageElement>("pairing-qr");
 const summaryMessageEl = byId<HTMLElement>("summary-message");
 const outputMessageEl = byId<HTMLElement>("output-message");
 const autoEnterEl = byId<HTMLInputElement>("auto-enter");
@@ -41,6 +45,13 @@ const suffixEl = byId<HTMLInputElement>("suffix");
 const testBarcodeEl = byId<HTMLInputElement>("test-barcode");
 const activityListEl = byId<HTMLElement>("activity-list");
 const activityCountEl = byId<HTMLElement>("activity-count");
+const clearHistoryDialogEl = byId<HTMLDialogElement>("clear-history-dialog");
+const cancelClearHistoryEl = byId<HTMLButtonElement>("cancel-clear-history");
+const confirmClearHistoryEl = byId<HTMLButtonElement>("confirm-clear-history");
+const updateBannerEl = byId<HTMLElement>("update-banner");
+const updateMessageEl = byId<HTMLElement>("update-message");
+const updateInstallEl = byId<HTMLButtonElement>("update-install");
+const updateDismissEl = byId<HTMLButtonElement>("update-dismiss");
 
 let activeChannel: Awaited<ReturnType<typeof subscribeDesktopSession>> | null = null;
 let heartbeatTimer: number | null = null;
@@ -49,6 +60,8 @@ let lastMobileSeenAt = 0;
 let autoHidden = false;
 let currentPairing: PairingInfo | null = null;
 let activeClientId: string | null = null;
+let settingsHistoryLimit = 100;
+let pendingUpdate: Awaited<ReturnType<typeof checkUpdate>> | null = null;
 
 function setMessage(element: HTMLElement, message: string, state: "idle" | "success" | "error" = "idle") {
   element.textContent = message;
@@ -76,11 +89,21 @@ async function loadPairing() {
   pairingUrlEl.textContent = currentPairing.hasTrustedClient
     ? `perangkat tersimpan / kode: ${formatted}`
     : `kode sesi: ${formatted}`;
+  try {
+    pairingQrEl.src = await QRCode.toDataURL(currentPairing.pairingUrl, {
+      width: 180,
+      margin: 1,
+      color: { dark: "#201d1d", light: "#fdfcfc" }
+    });
+    pairingQrEl.hidden = false;
+  } catch {
+    pairingQrEl.hidden = true;
+  }
 }
 
 function formatPairingCode(value: string): string {
-  const clean = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 6);
-  return clean.length > 3 ? `${clean.slice(0, 3)} ${clean.slice(3)}` : clean;
+  const clean = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 32);
+  return clean.match(/.{1,8}/g)?.join(" ") ?? clean;
 }
 
 async function broadcastDesktopStatus() {
@@ -95,6 +118,7 @@ async function broadcastDesktopStatus() {
         sessionId: currentPairing.sessionId,
         status: currentStatus.status === "connected" ? "connected" : "waiting_pairing",
         deviceCount: currentStatus.status === "connected" ? 1 : 0,
+        clientId: currentStatus.clientId,
         timestamp: new Date().toISOString()
       }
     });
@@ -124,6 +148,7 @@ function startMobileWatchdog() {
     mobileStatusEl.dataset.state = "idle";
     autoHidden = false;
     void invoke("mark_disconnected").then(() => loadStatus(false));
+    void invoke("show_main_window");
     setMessage(summaryMessageEl, "mobile.timeout / siap untuk pairing", "idle");
   }, 2000);
 }
@@ -215,6 +240,7 @@ async function startRealtime() {
         lastEventEl.textContent = "client_left";
         autoHidden = false;
         await invoke("reset_pairing_code");
+        await invoke("show_main_window");
         window.location.reload();
       },
       async (clientId) => {
@@ -247,6 +273,7 @@ async function loadSettings() {
   historyEnabledEl.checked = settings.historyEnabled;
   prefixEl.value = settings.prefix;
   suffixEl.value = settings.suffix;
+  settingsHistoryLimit = settings.historyLimit;
 }
 
 async function saveSettings() {
@@ -258,7 +285,7 @@ async function saveSettings() {
         prefix: prefixEl.value,
         suffix: suffixEl.value,
         historyEnabled: historyEnabledEl.checked,
-        historyLimit: 100
+        historyLimit: settingsHistoryLimit
       }
     });
     setMessage(outputMessageEl, "pengaturan.tersimpan", "success");
@@ -270,16 +297,8 @@ async function saveSettings() {
 async function sendTestScan() {
   if (!currentPairing) await loadPairing();
   try {
-    const ack = await invoke<{ success: boolean; message: string }>("receive_scan", {
-      event: {
-        type: "scan",
-        sessionId: currentPairing!.sessionId,
-        barcode: testBarcodeEl.value,
-        timestamp: new Date().toISOString(),
-        source: "mobile"
-      }
-    });
-    setMessage(outputMessageEl, `uji.berhasil / ${ack.message}`, "success");
+    const typed = await invoke<string>("test_scan", { barcode: testBarcodeEl.value });
+    setMessage(outputMessageEl, `uji.berhasil / ${typed}`, "success");
   } catch (error) {
     setMessage(outputMessageEl, errorMessage(error, "Uji output gagal."), "error");
   }
@@ -320,13 +339,25 @@ function renderHistory(items: HistoryItem[]) {
 }
 
 async function clearHistory() {
-  if (!window.confirm("Hapus seluruh riwayat scan lokal? Tindakan ini tidak dapat dibatalkan.")) return;
+  confirmClearHistoryEl.disabled = true;
+  confirmClearHistoryEl.textContent = "[menghapus...]";
   try {
     await invoke("clear_history");
     renderHistory([]);
+    clearHistoryDialogEl.close();
   } catch (error) {
     activityListEl.innerHTML = `<div class="empty-state">[!] ${escapeHtml(errorMessage(error, "Riwayat gagal dihapus."))}</div>`;
+    clearHistoryDialogEl.close();
+  } finally {
+    confirmClearHistoryEl.disabled = false;
+    confirmClearHistoryEl.textContent = "[hapus riwayat]";
   }
+}
+
+function openClearHistoryDialog() {
+  if (clearHistoryDialogEl.open) return;
+  clearHistoryDialogEl.showModal();
+  cancelClearHistoryEl.focus();
 }
 
 async function disconnectSession() {
@@ -386,12 +417,30 @@ function escapeHtml(value: string): string {
   });
 }
 
+async function checkForUpdates() {
+  try {
+    const update = await checkUpdate();
+    if (!update) return;
+    pendingUpdate = update;
+    updateMessageEl.textContent = `Versi baru tersedia: ${update.version}`;
+    updateBannerEl.hidden = false;
+  } catch (error) {
+    updateMessageEl.textContent = `Cek update gagal: ${errorMessage(error, "server update tidak terjangkau")}`;
+    updateBannerEl.hidden = false;
+  }
+}
+
 document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tab as TabName));
 });
 byId<HTMLButtonElement>("save-settings").addEventListener("click", () => void saveSettings());
 byId<HTMLButtonElement>("send-test").addEventListener("click", () => void sendTestScan());
-byId<HTMLButtonElement>("clear-history").addEventListener("click", () => void clearHistory());
+byId<HTMLButtonElement>("clear-history").addEventListener("click", openClearHistoryDialog);
+cancelClearHistoryEl.addEventListener("click", () => clearHistoryDialogEl.close());
+confirmClearHistoryEl.addEventListener("click", () => void clearHistory());
+clearHistoryDialogEl.addEventListener("click", (event) => {
+  if (event.target === clearHistoryDialogEl) clearHistoryDialogEl.close();
+});
 byId<HTMLButtonElement>("copy-code").addEventListener("click", async () => {
   const pairing = currentPairing ?? (await invoke<PairingInfo>("get_pairing_info"));
   await navigator.clipboard.writeText(pairing.sessionId);
@@ -401,6 +450,43 @@ byId<HTMLButtonElement>("new-code").addEventListener("click", async () => {
   await disconnectSession();
 });
 byId<HTMLButtonElement>("disconnect-session").addEventListener("click", () => void disconnectSession());
+updateInstallEl.addEventListener("click", async () => {
+  if (!pendingUpdate) return;
+  updateInstallEl.disabled = true;
+  updateInstallEl.textContent = "[mengunduh...]";
+  updateMessageEl.textContent = "Mengunduh pembaruan...";
+  let downloaded = 0;
+  let total: number | undefined;
+  const mb = (bytes: number) => Math.round(bytes / 1024 / 1024);
+  try {
+    await pendingUpdate.downloadAndInstall((event) => {
+      if (event.event === "Started") {
+        total = event.data.contentLength;
+      } else if (event.event === "Progress") {
+        downloaded += event.data.chunkLength;
+      } else if (event.event === "Finished") {
+        updateMessageEl.textContent = "Unduhan selesai. Memasang...";
+        return;
+      }
+      const totalMb = total ? mb(total) : 0;
+      updateMessageEl.textContent =
+        totalMb > 0
+          ? `Mengunduh pembaruan: ${mb(downloaded)}/${totalMb} MB...`
+          : `Mengunduh pembaruan: ${mb(downloaded)} MB...`;
+    });
+    updateMessageEl.textContent = "Pembaruan terpasang. Memulai ulang...";
+    updateInstallEl.textContent = "[memulai ulang...]";
+    await relaunch();
+  } catch (error) {
+    updateMessageEl.textContent = `Gagal memasang: ${errorMessage(error, "pembaruan gagal")}`;
+    updateInstallEl.disabled = false;
+    updateInstallEl.textContent = "[pasang & restart]";
+  }
+});
+updateDismissEl.addEventListener("click", () => {
+  updateBannerEl.hidden = true;
+  pendingUpdate = null;
+});
 autoEnterEl.addEventListener("change", () => {
   if (autoEnterEl.checked) autoTabEl.checked = false;
 });
@@ -418,6 +504,7 @@ async function initialize() {
   try {
     await Promise.all([loadPairing(), loadStatus(false), loadSettings(), loadHistory()]);
     await startRealtime();
+    void checkForUpdates();
   } catch (error) {
     statusEl.textContent = "[!] gagal memuat";
     statusEl.dataset.state = "error";

@@ -55,6 +55,7 @@ export interface DesktopStatusEvent extends BaseEvent {
   type: "desktop_status";
   status: DesktopStatus;
   deviceCount: number;
+  clientId?: string;
 }
 
 export type RealtimeEvent =
@@ -72,8 +73,9 @@ export function isScanEvent(value: unknown): value is ScanEvent {
     event.type === "scan" &&
     typeof event.scanId === "string" &&
     typeof event.clientId === "string" &&
-    typeof event.sessionId === "string" &&
+    isValidPairingCode(event.sessionId ?? "") &&
     typeof event.barcode === "string" &&
+    isValidTimestamp(event.timestamp) &&
     event.source === "mobile"
   );
 }
@@ -81,19 +83,37 @@ export function isScanEvent(value: unknown): value is ScanEvent {
 export function isRealtimeEvent(value: unknown): value is RealtimeEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Partial<RealtimeEvent>;
-  return (
-    typeof event.type === "string" &&
-    typeof event.sessionId === "string" &&
-    typeof event.timestamp === "string" &&
-    [
-      "client_joined",
-      "client_left",
-      "client_heartbeat",
-      "scan",
-      "scan_ack",
-      "desktop_status"
-    ].includes(event.type)
-  );
+  if (!isValidPairingCode(event.sessionId ?? "") || !isValidTimestamp(event.timestamp)) return false;
+
+  switch (event.type) {
+    case "client_joined":
+    case "client_left":
+    case "client_heartbeat":
+      return typeof event.clientId === "string" && event.clientId.length > 0 && event.source === "mobile";
+    case "scan":
+      return isScanEvent(event);
+    case "scan_ack":
+      return (
+        typeof event.scanId === "string" &&
+        typeof event.barcode === "string" &&
+        typeof event.success === "boolean" &&
+        (event.message === undefined || typeof event.message === "string")
+      );
+    case "desktop_status":
+      return (
+        ["idle", "waiting_pairing", "connected", "reconnecting"].includes(event.status ?? "") &&
+        typeof event.deviceCount === "number" &&
+        Number.isInteger(event.deviceCount) &&
+        event.deviceCount >= 0 &&
+        (event.clientId === undefined || (typeof event.clientId === "string" && event.clientId.length > 0))
+      );
+    default:
+      return false;
+  }
+}
+
+function isValidTimestamp(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
 export function buildSessionChannel(sessionId: string): string {
@@ -111,12 +131,11 @@ export function normalizePairingCode(value: string): string {
 }
 
 export function formatPairingCode(value: string): string {
-  const clean = normalizePairingCode(value).slice(0, 6);
-  return clean.length > 3 ? `${clean.slice(0, 3)} ${clean.slice(3)}` : clean;
+  return (normalizePairingCode(value).match(/.{1,8}/g) ?? []).join(" ");
 }
 
-export function isValidPairingCode(value: string): boolean {
-  return /^\d{6}$/.test(normalizePairingCode(value));
+export function isValidPairingCode(value: unknown): value is string {
+  return typeof value === "string" && /^[A-F0-9]{32}$/.test(normalizePairingCode(value));
 }
 
 export function normalizeBarcode(barcode: string): string {
@@ -155,13 +174,9 @@ export function createClientHeartbeatEvent(sessionId: string, clientId: string):
 
 export function createSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+    return crypto.randomUUID().replace(/-/g, "").toUpperCase();
   }
-  const randomBytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
-  randomBytes[6] = (randomBytes[6] & 0x0f) | 0x40;
-  randomBytes[8] = (randomBytes[8] & 0x3f) | 0x80;
-  const hex = randomBytes.map((byte) => byte.toString(16).padStart(2, "0"));
-  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex
-    .slice(8, 10)
-    .join("")}-${hex.slice(10, 16).join("")}`;
+  const randomBytes = new Uint8Array(16);
+  crypto.getRandomValues(randomBytes);
+  return Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
 }

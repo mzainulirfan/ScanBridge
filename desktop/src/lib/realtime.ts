@@ -4,6 +4,14 @@ import { buildSessionChannel, isRealtimeEvent, isScanEvent } from "../../../shar
 
 type DesktopSupabase = ReturnType<typeof createClient>;
 
+async function authenticate(supabase: DesktopSupabase): Promise<void> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  if (data.session) return;
+  const { error: signInError } = await supabase.auth.signInAnonymously();
+  if (signInError) throw signInError;
+}
+
 function isHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -43,22 +51,35 @@ export async function subscribeDesktopSession(
   onHeartbeat: (clientId: string) => Promise<void>,
   onSubscribed?: () => Promise<void>
 ): Promise<RealtimeChannel> {
+  await authenticate(supabase);
   const channel = supabase.channel(buildSessionChannel(sessionId), {
     config: { broadcast: { self: true } }
   });
 
   channel.on("broadcast", { event: "client_joined" }, async (payload) => {
-    if (!isRealtimeEvent(payload.payload) || payload.payload.type !== "client_joined") return;
+    if (
+      !isRealtimeEvent(payload.payload) ||
+      payload.payload.type !== "client_joined" ||
+      payload.payload.sessionId !== sessionId
+    ) return;
     await onConnected(payload.payload.clientId);
   });
 
   channel.on("broadcast", { event: "client_left" }, async (payload) => {
-    if (!isRealtimeEvent(payload.payload) || payload.payload.type !== "client_left") return;
+    if (
+      !isRealtimeEvent(payload.payload) ||
+      payload.payload.type !== "client_left" ||
+      payload.payload.sessionId !== sessionId
+    ) return;
     await onDisconnected(payload.payload.clientId);
   });
 
   channel.on("broadcast", { event: "client_heartbeat" }, async (payload) => {
-    if (!isRealtimeEvent(payload.payload) || payload.payload.type !== "client_heartbeat") return;
+    if (
+      !isRealtimeEvent(payload.payload) ||
+      payload.payload.type !== "client_heartbeat" ||
+      payload.payload.sessionId !== sessionId
+    ) return;
     await onHeartbeat(payload.payload.clientId);
   });
 

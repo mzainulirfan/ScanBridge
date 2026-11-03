@@ -48,6 +48,7 @@ export class SupabaseRealtimeClient implements RealtimeClient {
   private channel: RealtimeChannel | null = null;
   private sessionId: string | null = null;
   private eventHandler: ((event: RealtimeEvent) => void) | null = null;
+  private authentication: Promise<void> | null = null;
 
   constructor(supabase: SupabaseClient) {
     this.supabase = supabase;
@@ -55,6 +56,7 @@ export class SupabaseRealtimeClient implements RealtimeClient {
 
   async connect(sessionId: string): Promise<void> {
     await this.disconnect();
+    await this.authenticate();
     this.sessionId = sessionId;
     this.channel = this.supabase.channel(buildSessionChannel(sessionId), {
       config: {
@@ -63,10 +65,14 @@ export class SupabaseRealtimeClient implements RealtimeClient {
     });
 
     this.channel.on("broadcast", { event: "desktop_status" }, (payload) => {
-      if (isRealtimeEvent(payload.payload)) this.eventHandler?.(payload.payload);
+      if (isRealtimeEvent(payload.payload) && payload.payload.sessionId === this.sessionId) {
+        this.eventHandler?.(payload.payload);
+      }
     });
     this.channel.on("broadcast", { event: "scan_ack" }, (payload) => {
-      if (isRealtimeEvent(payload.payload)) this.eventHandler?.(payload.payload);
+      if (isRealtimeEvent(payload.payload) && payload.payload.sessionId === this.sessionId) {
+        this.eventHandler?.(payload.payload);
+      }
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -110,6 +116,22 @@ export class SupabaseRealtimeClient implements RealtimeClient {
 
   onEvent(handler: (event: RealtimeEvent) => void): void {
     this.eventHandler = handler;
+  }
+
+  private async authenticate(): Promise<void> {
+    if (!this.authentication) {
+      this.authentication = (async () => {
+        const { data, error } = await this.supabase.auth.getSession();
+        if (error) throw error;
+        if (data.session) return;
+        const { error: signInError } = await this.supabase.auth.signInAnonymously();
+        if (signInError) throw signInError;
+      })().catch((error) => {
+        this.authentication = null;
+        throw error;
+      });
+    }
+    await this.authentication;
   }
 }
 

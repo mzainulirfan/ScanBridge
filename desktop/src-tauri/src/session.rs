@@ -23,7 +23,7 @@ impl SessionManager {
 
     pub fn load(path: impl AsRef<Path>) -> Self {
         let session = read_json_or_default::<Self>(path);
-        if session.id.len() == 6 && session.id.chars().all(|char| char.is_ascii_digit()) {
+        if session.id.len() == 32 && session.id.chars().all(|char| char.is_ascii_hexdigit()) {
             session
         } else {
             Self::new()
@@ -60,8 +60,16 @@ impl SessionManager {
         self.trusted_client_id.is_some()
     }
 
+    pub fn trusted_client_id(&self) -> Option<String> {
+        self.trusted_client_id.clone()
+    }
+
     pub fn mark_disconnected(&mut self) {
         self.connected = false;
+    }
+
+    pub fn forget_trusted_client(&mut self) {
+        self.trusted_client_id = None;
     }
 
     pub fn reset(&mut self) {
@@ -82,13 +90,7 @@ impl Default for SessionManager {
 }
 
 fn create_pairing_code() -> String {
-    let digits: String = Uuid::new_v4()
-        .as_u128()
-        .to_string()
-        .chars()
-        .take(6)
-        .collect();
-    format!("{digits:0<6}")
+    Uuid::new_v4().simple().to_string().to_uppercase()
 }
 
 #[cfg(test)]
@@ -98,10 +100,10 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn creates_six_digit_pairing_code() {
+    fn creates_128_bit_pairing_code() {
         let session = SessionManager::new();
-        assert_eq!(session.id().len(), 6);
-        assert!(session.id().chars().all(|char| char.is_ascii_digit()));
+        assert_eq!(session.id().len(), 32);
+        assert!(session.id().chars().all(|char| char.is_ascii_hexdigit()));
     }
 
     #[test]
@@ -124,5 +126,13 @@ mod tests {
         let mut session = SessionManager::new();
         assert!(session.trust_client("mobile-1"));
         assert!(!session.trust_client("mobile-2"));
+    }
+
+    #[test]
+    fn allows_a_new_client_after_forgetting_the_old_one() {
+        let mut session = SessionManager::new();
+        assert!(session.trust_client("mobile-1"));
+        session.forget_trusted_client();
+        assert!(session.trust_client("mobile-2"));
     }
 }

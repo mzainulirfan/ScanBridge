@@ -6,7 +6,9 @@ use crate::{
     realtime::{RealtimeChannel, RealtimeClient},
     session::SessionManager,
 };
-use std::path::PathBuf;
+use std::{collections::VecDeque, path::PathBuf};
+
+const RECENT_SCAN_LIMIT: usize = 1024;
 
 pub struct DesktopApp {
     pub session: SessionManager,
@@ -15,6 +17,7 @@ pub struct DesktopApp {
     pub realtime: RealtimeClient,
     pub channel: RealtimeChannel,
     data_dir: PathBuf,
+    recent_scans: VecDeque<(String, String, ScanAckEvent)>,
 }
 
 impl DesktopApp {
@@ -31,6 +34,7 @@ impl DesktopApp {
             realtime: RealtimeClient::default(),
             channel,
             data_dir,
+            recent_scans: VecDeque::new(),
         }
     }
 
@@ -40,13 +44,29 @@ impl DesktopApp {
         } else {
             "waiting_pairing"
         };
-        self.realtime.create_status(&self.session.id(), state, 0)
+        let mut status = self.realtime.create_status(&self.session.id(), state, 0);
+        if self.session.is_connected() {
+            status.device_count = 1;
+            status.client_id = self.session.trusted_client_id();
+        }
+        status
     }
 
     pub fn receive_scan(&mut self, event: ScanEvent) -> Result<(String, ScanAckEvent), String> {
+        self.receive_scan_with(event, keyboard::type_scan)
+    }
+
+    fn receive_scan_with(
+        &mut self,
+        event: ScanEvent,
+        type_scan: impl FnOnce(&str, &str, &str, bool, bool) -> Result<String, String>,
+    ) -> Result<(String, ScanAckEvent), String> {
         self.validate_scan(&event)?;
+        if let Some((_, typed, ack)) = self.recent_scans.iter().find(|(id, _, _)| id == &event.scan_id) {
+            return Ok((typed.clone(), ack.clone()));
+        }
         let barcode = event.barcode.trim().to_string();
-        let type_result = keyboard::type_scan(
+        let type_result = type_scan(
             &self.config.prefix,
             &barcode,
             &self.config.suffix,
@@ -79,7 +99,12 @@ impl DesktopApp {
             success,
             &message,
         );
-        Ok((type_result.unwrap_or_default(), ack))
+        let typed = type_result.unwrap_or_default();
+        if self.recent_scans.len() >= RECENT_SCAN_LIMIT {
+            self.recent_scans.pop_front();
+        }
+        self.recent_scans.push_back((event.scan_id, typed.clone(), ack.clone()));
+        Ok((typed, ack))
     }
 
     pub fn update_settings(&mut self, config: AppConfig) -> Result<AppConfig, String> {
@@ -110,12 +135,28 @@ impl DesktopApp {
         Ok(true)
     }
 
-    pub fn disconnect(&mut self) {
+    pub fn disconnect(&mut self) -> Result<(), String> {
         self.session.mark_disconnected();
+        self.save_session()
+    }
+
+    pub fn test_scan(&self, barcode: &str) -> Result<String, String> {
+        let barcode = barcode.trim();
+        if barcode.is_empty() || barcode.chars().count() > 256 {
+            return Err("Barcode harus berisi 1-256 karakter".to_string());
+        }
+        keyboard::type_scan(
+            &self.config.prefix,
+            barcode,
+            &self.config.suffix,
+            self.config.auto_enter,
+            self.config.auto_tab,
+        )
     }
 
     pub fn reset_pairing(&mut self) -> Result<(), String> {
         self.session.reset();
+        self.recent_scans.clear();
         self.channel = RealtimeChannel::new(self.session.id());
         self.save_session()
     }
@@ -196,5 +237,50 @@ mod tests {
         let mut invalid = event(&app);
         invalid.barcode.clear();
         assert!(app.validate_scan(&invalid).is_err());
+    }
+
+    #[test]
+    fn timeout_preserves_trusted_client_and_pairing_code() {
+        let mut app = app();
+        let code = app.session.id();
+        app.disconnect().unwrap();
+        assert!(!app.session.is_connected());
+        assert_eq!(app.session.id(), code);
+        assert!(app.session.is_trusted("client-1"));
+        assert!(!app.connect("client-2").unwrap());
+        let loaded = DesktopApp::load(app.data_dir.clone());
+        assert!(loaded.session.is_trusted("client-1"));
+        assert!(app.connect("client-1").unwrap());
+        assert_eq!(app.status().client_id.as_deref(), Some("client-1"));
+        assert_eq!(app.status().device_count, 1);
+    }
+
+    #[test]
+    fn duplicate_scan_returns_original_ack_without_typing_again() {
+        let mut app = app();
+        let event = event(&app);
+        let first = app.receive_scan_with(event.clone(), |_, barcode, _, _, _| Ok(barcode.into())).unwrap();
+        let replay = app.receive_scan_with(event, |_, _, _, _, _| panic!("duplicate typed again")).unwrap();
+        assert_eq!(first.0, replay.0);
+        assert_eq!(first.1.timestamp, replay.1.timestamp);
+        assert!(replay.1.success);
+        assert_eq!(app.history().len(), 1);
+    }
+
+    #[test]
+    fn failed_scan_is_not_retyped_and_cache_is_bounded() {
+        let mut app = app();
+        app.config.history_enabled = false;
+        let first_event = event(&app);
+        app.receive_scan_with(first_event.clone(), |_, _, _, _, _| Err("partial typing failure".into())).unwrap();
+        let replay = app.receive_scan_with(first_event, |_, _, _, _, _| panic!("failed scan typed again")).unwrap();
+        assert!(!replay.1.success);
+        for _ in 0..super::RECENT_SCAN_LIMIT {
+            let next = event(&app);
+            app.receive_scan_with(next, |_, barcode, _, _, _| Ok(barcode.into())).unwrap();
+        }
+        assert_eq!(app.recent_scans.len(), super::RECENT_SCAN_LIMIT);
+        app.reset_pairing().unwrap();
+        assert!(app.recent_scans.is_empty());
     }
 }

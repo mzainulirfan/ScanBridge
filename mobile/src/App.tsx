@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useScannerSession } from "./hooks/useScannerSession";
 import HomePanel from "./components/HomePanel";
 import ScannerPanel from "./components/ScannerPanel";
 import SessionStatusPill from "./components/SessionStatusPill";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
+import { getPairingCodeFromScan } from "./lib/session";
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -17,6 +18,7 @@ function App() {
     connectWithCode,
     pairingCode,
     status,
+    lastAck,
     barcode,
     manualBarcode,
     setBarcode,
@@ -29,6 +31,10 @@ function App() {
   } = useScannerSession();
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [pairingScanMode, setPairingScanMode] = useState(false);
+  const [pairingScanError, setPairingScanError] = useState("");
+  const [pairingScanMessage, setPairingScanMessage] = useState("");
+  const pairingScanLocked = useRef(false);
   useEffect(() => {
     const handleInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -43,8 +49,24 @@ function App() {
     setInstallPrompt(null);
   };
   const scanner = useBarcodeScanner({
-    enabled: screen === "scanner" && realtimeConfigured,
+    enabled: (screen === "scanner" && realtimeConfigured) || pairingScanMode,
+    idleTimeoutMs: 10_000,
     onScan: (result) => {
+      if (pairingScanMode) {
+        if (pairingScanLocked.current) return;
+        const scannedCode = getPairingCodeFromScan(result.barcode);
+        if (!scannedCode) {
+          setPairingScanError("QR ini bukan QR pairing ScanBridge.");
+          return;
+        }
+        pairingScanLocked.current = true;
+        setPairingScanMode(false);
+        setPairingScanError("");
+        setPairingScanMessage("QR terbaca. Menghubungkan ke desktop...");
+        updateSessionId(scannedCode);
+        connectWithCode(result.barcode);
+        return;
+      }
       void submitScan(result.barcode, result.symbology);
     }
   });
@@ -76,6 +98,21 @@ function App() {
           onPairingCodeChange={updateSessionId}
           onConnect={connectWithCode}
           onResetPairing={() => setResetDialogOpen(true)}
+          pairingScanMode={pairingScanMode}
+          pairingScanActive={scanner.active}
+          pairingScanPaused={scanner.pausedForInactivity}
+          pairingScanError={pairingScanError || scanner.error || ""}
+          pairingConnectionMessage={pairingScanMessage || lastAck}
+          pairingVideoRef={scanner.videoRef}
+          onStartPairingScan={() => {
+            pairingScanLocked.current = false;
+            setPairingScanError("");
+            setPairingScanMessage("");
+            setPairingScanMode(true);
+            scanner.resume();
+          }}
+          onCancelPairingScan={() => setPairingScanMode(false)}
+          onResumePairingScan={scanner.resume}
         />
       )}
 
@@ -84,6 +121,7 @@ function App() {
           barcode={barcode}
           manualBarcode={manualBarcode}
           active={scanner.active}
+          pausedForInactivity={scanner.pausedForInactivity}
           error={scanner.error}
           toast={toast}
           videoRef={scanner.videoRef}
@@ -91,6 +129,7 @@ function App() {
           torchEnabled={scanner.torchEnabled}
           onBarcodeChange={setManualBarcode}
           onTorchToggle={() => void scanner.toggleTorch()}
+          onResumeCamera={scanner.resume}
           onReconnect={() => {
             void reconnect();
           }}

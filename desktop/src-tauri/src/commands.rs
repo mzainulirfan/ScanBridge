@@ -69,7 +69,7 @@ pub fn mark_connected(
 #[tauri::command]
 pub fn mark_disconnected(state: State<'_, AppState>) -> Result<DesktopStatusEvent, String> {
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
-    app.disconnect();
+    app.disconnect()?;
     Ok(app.status())
 }
 
@@ -105,6 +105,12 @@ pub fn receive_scan(event: ScanEvent, state: State<'_, AppState>) -> Result<Scan
     let mut app = state.app.lock().map_err(|error| error.to_string())?;
     let (_typed, ack) = app.receive_scan(event)?;
     Ok(ack)
+}
+
+#[tauri::command]
+pub fn test_scan(barcode: String, state: State<'_, AppState>) -> Result<String, String> {
+    let app = state.app.lock().map_err(|error| error.to_string())?;
+    app.test_scan(&barcode)
 }
 
 #[tauri::command]

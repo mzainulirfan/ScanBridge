@@ -5,6 +5,7 @@ type ScannerPanelProps = {
   barcode: string;
   manualBarcode: string;
   active: boolean;
+  pausedForInactivity: boolean;
   error?: string | null;
   toast?: string;
   videoRef: RefObject<HTMLVideoElement>;
@@ -12,6 +13,7 @@ type ScannerPanelProps = {
   torchEnabled: boolean;
   onBarcodeChange: (value: string) => void;
   onTorchToggle: () => void;
+  onResumeCamera: () => void;
   onReconnect: () => void;
   onResetPairing: () => void;
   onDisconnect: () => void;
@@ -22,6 +24,7 @@ function ScannerPanel({
   barcode,
   manualBarcode,
   active,
+  pausedForInactivity,
   error,
   toast,
   videoRef,
@@ -29,6 +32,7 @@ function ScannerPanel({
   torchEnabled,
   onBarcodeChange,
   onTorchToggle,
+  onResumeCamera,
   onReconnect,
   onResetPairing,
   onDisconnect,
@@ -40,6 +44,7 @@ function ScannerPanel({
         lastScan={barcode}
         manualBarcode={manualBarcode}
         active={active}
+        pausedForInactivity={pausedForInactivity}
         error={error}
         toast={toast}
         videoRef={videoRef}
@@ -47,6 +52,7 @@ function ScannerPanel({
         torchEnabled={torchEnabled}
         onBarcodeChange={onBarcodeChange}
         onTorchToggle={onTorchToggle}
+        onResumeCamera={onResumeCamera}
         onReconnect={onReconnect}
         onResetPairing={onResetPairing}
         onDisconnect={onDisconnect}

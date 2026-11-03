@@ -240,6 +240,48 @@ button:disabled {
   gap: 8px;
 }
 
+.pairing-scan-button {
+  width: 100%;
+}
+
+.pairing-camera {
+  position: relative;
+  display: grid;
+  min-height: 240px;
+  overflow: hidden;
+  border: 1px solid #646262;
+  background: #201d1d;
+}
+
+.pairing-camera .camera-video {
+  min-height: 240px;
+}
+
+.pairing-scan-guide {
+  top: 16%;
+  right: 16%;
+  bottom: 16%;
+  left: 16%;
+}
+
+.pairing-cancel {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+}
+
+.pairing-scan-error {
+  color: #ffb4ac;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pairing-connection-message {
+  color: #b9f6c8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .confirm-backdrop {
   position: fixed;
   inset: 0;
@@ -358,8 +400,18 @@ button:disabled {
 
 .camera-placeholder {
   position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: min(280px, calc(100% - 32px));
   color: #9a9898;
   font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.camera-resume {
+  border-color: #fdfcfc;
 }
 
 .camera-video {
@@ -486,21 +538,23 @@ button:disabled {
 .pairing-code-entry {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
 .pairing-code-block {
   display: grid;
   place-items: center;
-  height: 64px;
+  min-height: 64px;
+  padding: 12px;
   border: 1px solid #646262;
   border-radius: 4px;
   background: #302c2c;
   color: #fdfcfc;
-  font-size: 30px;
+  font-size: clamp(14px, 4vw, 24px);
   font-weight: 700;
-  letter-spacing: 4px;
+  letter-spacing: 1px;
+  overflow-wrap: anywhere;
   line-height: 1;
 }
 

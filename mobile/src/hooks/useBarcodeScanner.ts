@@ -5,6 +5,7 @@ import type { ScanResult } from "../lib/scanner";
 type UseBarcodeScannerOptions = {
   enabled: boolean;
   cooldownMs?: number;
+  idleTimeoutMs?: number;
   onScan: (result: ScanResult) => void;
 };
 
@@ -17,21 +18,28 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
   video: {
     facingMode: { ideal: "environment" },
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
+    width: { ideal: 640, max: 1280 },
+    height: { ideal: 480, max: 720 },
     frameRate: { ideal: 30 }
   }
 };
 
-export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarcodeScannerOptions) {
+export function useBarcodeScanner({
+  enabled,
+  cooldownMs = 800,
+  idleTimeoutMs = 10_000,
+  onScan
+}: UseBarcodeScannerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const lastScanAtRef = useRef(0);
   const lastBarcodeRef = useRef("");
   const onScanRef = useRef(onScan);
+  const idleTimerRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
+  const [pausedForInactivity, setPausedForInactivity] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
 
@@ -44,6 +52,25 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
     controlsRef.current = null;
     setActive(false);
     setTorchEnabled(false);
+  }, []);
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimerRef.current !== null) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
+
+  const resetIdleTimer = useCallback(() => {
+    clearIdleTimer();
+    idleTimerRef.current = window.setTimeout(() => {
+      setPausedForInactivity(true);
+    }, idleTimeoutMs);
+  }, [clearIdleTimer, idleTimeoutMs]);
+
+  const resume = useCallback(() => {
+    setError(null);
+    setPausedForInactivity(false);
   }, []);
 
   const toggleTorch = useCallback(async () => {
@@ -65,7 +92,7 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
   }, [torchEnabled, torchSupported]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || pausedForInactivity) {
       stop();
       return;
     }
@@ -97,8 +124,8 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
           BarcodeFormat.QR_CODE
         ]);
         readerRef.current = new BrowserMultiFormatReader(hints, {
-          delayBetweenScanAttempts: 20,
-          delayBetweenScanSuccess: 40
+          delayBetweenScanAttempts: 10,
+          delayBetweenScanSuccess: 20
         });
       }
 
@@ -118,6 +145,7 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
 
           lastBarcodeRef.current = barcode;
           lastScanAtRef.current = now;
+          resetIdleTimer();
           onScanRef.current({
             barcode,
             symbology: result.getBarcodeFormat().toString()
@@ -147,11 +175,24 @@ export function useBarcodeScanner({ enabled, cooldownMs = 800, onScan }: UseBarc
       cancelled = true;
       stop();
     };
-  }, [cooldownMs, enabled, stop]);
+  }, [cooldownMs, enabled, pausedForInactivity, resetIdleTimer, stop]);
+
+  useEffect(() => {
+    if (!enabled || pausedForInactivity) {
+      clearIdleTimer();
+      if (!enabled) setPausedForInactivity(false);
+      return;
+    }
+
+    resetIdleTimer();
+    return clearIdleTimer;
+  }, [clearIdleTimer, enabled, pausedForInactivity, resetIdleTimer]);
 
   return {
     videoRef,
     active,
+    pausedForInactivity,
+    resume,
     error,
     stop,
     torchSupported,

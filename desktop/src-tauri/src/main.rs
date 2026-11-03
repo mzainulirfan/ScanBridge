@@ -23,6 +23,8 @@ use tauri::{
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             app.manage(AppState {
@@ -66,6 +68,7 @@ fn main() {
             commands::get_history,
             commands::clear_history,
             commands::receive_scan,
+            commands::test_scan,
             commands::mark_connected,
             commands::mark_disconnected,
             commands::hide_main_window,

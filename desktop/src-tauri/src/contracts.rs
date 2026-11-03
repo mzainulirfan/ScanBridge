@@ -53,6 +53,8 @@ pub struct DesktopStatusEvent {
     pub status: String,
     pub device_count: u32,
     pub timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
 }
 
 impl DesktopStatusEvent {
@@ -63,6 +65,7 @@ impl DesktopStatusEvent {
             status: status.into(),
             device_count,
             timestamp: chrono::Utc::now().to_rfc3339(),
+            client_id: None,
         }
     }
 }

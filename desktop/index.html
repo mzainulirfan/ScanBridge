@@ -38,8 +38,9 @@
               <h2 id="pairing-heading">pair_device</h2>
               <span id="session-state">session.active</span>
             </div>
-            <p class="terminal-line"><span class="prompt">&gt;</span> Masukkan kode ini di ponsel</p>
-            <div id="pairing-code" class="pairing-code">--- ---</div>
+            <p class="terminal-line"><span class="prompt">&gt;</span> Masukkan kode pairing ini di ponsel</p>
+            <div id="pairing-code" class="pairing-code">-------- -------- -------- --------</div>
+            <img id="pairing-qr" class="pairing-qr" alt="QR untuk membuka ScanBridge di ponsel" />
             <p id="pairing-url" class="terminal-note">menyiapkan sesi...</p>
             <div class="button-row">
               <button id="copy-code" class="button-inverse" type="button">[salin]</button>
@@ -131,5 +132,30 @@
 
       <footer>scanbridge://local &middot; tetap aktif di system tray</footer>
     </main>
+
+    <div id="update-banner" class="update-banner" hidden>
+      <span id="update-message" aria-live="polite">Versi baru tersedia.</span>
+      <div class="update-actions">
+        <button id="update-install" class="button-secondary" type="button">[pasang &amp; restart]</button>
+        <button id="update-dismiss" class="button-inverse" type="button">[nanti]</button>
+      </div>
+    </div>
+
+    <dialog id="clear-history-dialog" class="confirm-dialog" aria-labelledby="clear-history-title">
+      <form method="dialog" class="confirm-dialog-content">
+        <div class="confirm-dialog-header">
+          <span class="confirm-marker" aria-hidden="true">[!]</span>
+          <div>
+            <h2 id="clear-history-title">Hapus seluruh riwayat?</h2>
+            <p>Semua aktivitas scan lokal akan dihapus permanen.</p>
+          </div>
+        </div>
+        <p class="confirm-dialog-note">Tindakan ini tidak dapat dibatalkan.</p>
+        <div class="confirm-dialog-actions">
+          <button id="cancel-clear-history" class="button-secondary" type="button">[batal]</button>
+          <button id="confirm-clear-history" class="button-danger-solid" type="button">[hapus riwayat]</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

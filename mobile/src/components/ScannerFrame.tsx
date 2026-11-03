@@ -2,6 +2,7 @@ type ScannerFrameProps = {
   lastScan: string;
   manualBarcode: string;
   active: boolean;
+  pausedForInactivity: boolean;
   error?: string | null;
   toast?: string;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -9,6 +10,7 @@ type ScannerFrameProps = {
   torchEnabled: boolean;
   onBarcodeChange: (value: string) => void;
   onTorchToggle: () => void;
+  onResumeCamera: () => void;
   onReconnect: () => void;
   onResetPairing: () => void;
   onDisconnect: () => void;
@@ -19,6 +21,7 @@ function ScannerFrame({
   lastScan,
   manualBarcode,
   active,
+  pausedForInactivity,
   error,
   toast,
   videoRef,
@@ -26,6 +29,7 @@ function ScannerFrame({
   torchEnabled,
   onBarcodeChange,
   onTorchToggle,
+  onResumeCamera,
   onReconnect,
   onResetPairing,
   onDisconnect,
@@ -55,7 +59,7 @@ function ScannerFrame({
       <div className="scanner-heading">
         <span className="section-label">[kamera scanner]</span>
         <span className={active ? "live-indicator active" : "live-indicator"}>
-          {active ? "aktif" : "menyiapkan"}
+          {active ? "aktif" : pausedForInactivity ? "hemat baterai" : "menyiapkan"}
         </span>
       </div>
       <div
@@ -106,7 +110,20 @@ function ScannerFrame({
         <div className="scan-guide" aria-hidden="true">
           <span />
         </div>
-        {!active && <div className="camera-placeholder">Meminta akses kamera...</div>}
+        {!active && (
+          <div className="camera-placeholder">
+            {pausedForInactivity ? (
+              <>
+                <span>Kamera dimatikan setelah 10 detik tidak digunakan.</span>
+                <button className="primary camera-resume" onClick={onResumeCamera} type="button">
+                  [nyalakan kamera]
+                </button>
+              </>
+            ) : (
+              "Meminta akses kamera..."
+            )}
+          </div>
+        )}
       </div>
       {error && (
         <div className="error-box" role="alert">

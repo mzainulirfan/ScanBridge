@@ -10,10 +10,19 @@ pub fn read_json_or_default<T>(path: impl AsRef<Path>) -> T
 where
     T: DeserializeOwned + Default,
 {
+    let path = path.as_ref();
+    read_json(path)
+        .or_else(|| read_json(&path.with_extension("backup")))
+        .unwrap_or_default()
+}
+
+fn read_json<T>(path: &Path) -> Option<T>
+where
+    T: DeserializeOwned,
+{
     fs::read_to_string(path)
         .ok()
         .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
 }
 
 pub fn write_json_atomic<T>(path: impl AsRef<Path>, value: &T) -> io::Result<()>
