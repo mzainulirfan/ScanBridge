@@ -25,19 +25,39 @@ function loadSource(relative, imports = {}, globals = {}) {
 
 const code = "A".repeat(32);
 const contracts = loadSource("mobile/src/shared/contracts.ts");
+const realtimeSession = loadSource("shared/realtime-session.ts", { "./contracts": contracts });
 
 // Run the real hook source with deterministic hook state, relay responses and timers.
 function makeSession({ stored = null, failConnect = false } = {}) {
-  let cursor = 0, dirty = false, result, timerId = 0;
+  let cursor = 0, dirty = false, result, timerId = 0, now = 100000, storedCode = stored;
   const slots = [], effects = [], timers = new Map();
+  function target(extra = {}) {
+    const listeners = new Map();
+    return Object.assign(extra, {
+      addEventListener(event, handler) { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(handler); },
+      removeEventListener(event, handler) { listeners.get(event)?.delete(handler); },
+      emit(event) { for (const handler of [...(listeners.get(event) ?? [])]) handler(); }
+    });
+  }
+  const browser = target({
+    setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms, at: now + ms }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    setInterval(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms, at: now + ms, interval: true }); return id; },
+    clearInterval(id) { timers.delete(id); }
+  });
+  const document = target({ visibilityState: "visible" });
+  const navigator = { onLine: true };
   const relay = {
-    configured: true, connects: 0, failConnect, handler: null,
+    configured: true, connects: 0, disconnects: 0, failConnect, failPublish: false, handler: null, published: [],
     async connect() {
       this.connects++;
       if (this.failConnect) throw new Error("network failed");
     },
-    async disconnect() {}, async publish() {},
-    onEvent(handler) { this.handler = handler; }
+    async disconnect() { this.disconnects++; },
+    async publish(event) { this.published.push(event); if (this.failPublish) throw new Error("publish failed"); },
+    onEvent(handler) { this.handler = handler; },
+    onStateChange(handler) { this.stateHandler = handler; },
+    onPeerLeft(handler) { this.peerLeftHandler = handler; }
   };
   const equal = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   const react = {
@@ -69,21 +89,17 @@ function makeSession({ stored = null, failConnect = false } = {}) {
     react,
     "../lib/feedback": { prepareScannerSound() {}, scannerSuccessSound() {}, vibrate() {} },
     "../lib/realtime": { createRealtimeClient: () => relay },
+    "../../../shared/realtime-session": realtimeSession,
     "../lib/scanner": loadSource("mobile/src/lib/scanner.ts", { "../shared/contracts": contracts }),
     "../lib/session": {
       getSessionFromLocation: () => null, getStoredPairingCode: () => stored,
       getOrCreateStoredClientId: () => "phone-A", getPairingCodeFromScan: () => null,
-      storePairingCode() {}, clearStoredPairingCode() {}, clearSessionFromLocation() {}
+      storePairingCode(code) { storedCode = code; }, clearStoredPairingCode() { storedCode = null; }, clearSessionFromLocation() {}
     },
     "../shared/contracts": contracts
   }, {
-    window: {
-      setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; },
-      clearTimeout(id) { timers.delete(id); },
-      setInterval(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms, interval: true }); return id; },
-      clearInterval(id) { timers.delete(id); }
-    },
-    document: { addEventListener() {}, removeEventListener() {} }
+    window: browser, document, navigator,
+    Date: class extends Date { static now() { return now; } }
   });
   function render() {
     cursor = 0; dirty = false; result = useScannerSession();
@@ -93,7 +109,18 @@ function makeSession({ stored = null, failConnect = false } = {}) {
     for (let i = 0; i < 30; i++) { await Promise.resolve(); if (dirty) render(); }
   }
   render();
-  return { relay, timers, flush, get result() { return result; } };
+  async function advance(ms) {
+    const end = now + ms;
+    for (let count = 0; count < 1000; count++) {
+      const next = [...timers.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      const [id, timer] = next; now = timer.at;
+      if (timer.interval) timer.at += timer.ms; else timers.delete(id);
+      timer.fn(); await flush();
+    }
+    now = end; await flush();
+  }
+  return { relay, timers, flush, advance, browser, document, navigator, get storedCode() { return storedCode; }, get result() { return result; } };
 }
 
 test("same pairing code can be retried after a network failure", async () => {
@@ -155,4 +182,108 @@ test("blocked localStorage access uses a fallback client ID", () => {
   });
   const session = loadSource("mobile/src/lib/session.ts", { "../shared/contracts": contracts }, { window });
   assert.ok(session.getOrCreateStoredClientId());
+});
+
+async function pairedSession() {
+  const session = makeSession();
+  session.result.connectWithCode(code);
+  await session.flush();
+  session.relay.handler({ type: "desktop_status", sessionId: code, status: "connected",
+    clientId: "phone-A", deviceCount: 1, timestamp: new Date().toISOString() });
+  await session.flush();
+  assert.equal(session.result.screen, "scanner");
+  return session;
+}
+
+test("desktop presence leaving stops the scanner and keeps pairing for reconnect", async () => {
+  const session = await pairedSession();
+  session.relay.peerLeftHandler(); await session.flush();
+  assert.equal(session.result.screen, "home");
+  assert.equal(session.result.status, "Desktop offline");
+  assert.equal(session.storedCode, code);
+  await session.advance(5000);
+  assert.equal(session.relay.connects, 2);
+});
+
+test("a frozen desktop is detected by the heartbeat deadline", async () => {
+  const session = await pairedSession();
+  await session.advance(realtimeSession.PEER_TIMEOUT_MS);
+  assert.equal(session.result.status, "Desktop offline");
+  assert.equal(session.result.screen, "home");
+  assert.equal(session.storedCode, code);
+});
+
+test("relay closure after pairing immediately clears the connected UI", async () => {
+  const session = await pairedSession();
+  session.relay.stateHandler("disconnected"); await session.flush();
+  assert.equal(session.result.status, "Koneksi terputus");
+  assert.equal(session.result.screen, "home");
+  assert.equal(session.storedCode, code);
+});
+
+test("backgrounding releases the socket without forgetting pairing and resumes when visible", async () => {
+  const session = await pairedSession();
+  const previous = session.relay.disconnects;
+  session.document.visibilityState = "hidden";
+  session.document.emit("visibilitychange"); await session.flush();
+  assert.equal(session.relay.disconnects, previous + 1);
+  assert.equal(session.result.screen, "home");
+  assert.equal(session.storedCode, code);
+  await session.advance(20000);
+  assert.equal(session.relay.connects, 1, "no reconnect loop while backgrounded");
+  session.document.visibilityState = "visible";
+  session.document.emit("visibilitychange"); await session.flush();
+  assert.equal(session.relay.connects, 2);
+});
+
+test("offline and online events suspend and immediately retry saved pairing", async () => {
+  const session = await pairedSession();
+  session.navigator.onLine = false;
+  session.browser.emit("offline"); await session.flush();
+  assert.equal(session.result.status, "Internet terputus");
+  await session.advance(10000);
+  assert.equal(session.relay.connects, 1);
+  session.navigator.onLine = true;
+  session.browser.emit("online"); await session.flush();
+  assert.equal(session.relay.connects, 2);
+});
+
+test("peer loss settles pending scans immediately instead of showing false success", async () => {
+  const session = await pairedSession();
+  const result = session.result.submitScan("899123");
+  await session.flush();
+  session.relay.peerLeftHandler(); await session.flush();
+  assert.equal(await result, false);
+  assert.equal(session.result.screen, "home");
+});
+
+test("desktop typing failure keeps the healthy connection available", async () => {
+  const session = await pairedSession();
+  const pending = session.result.submitScan("899123");
+  await session.flush();
+  const scan = session.relay.published.find(event => event.type === "scan");
+  session.relay.handler({ type: "scan_ack", sessionId: code, scanId: scan.scanId,
+    barcode: scan.barcode, success: false, message: "Keyboard busy", timestamp: new Date().toISOString() });
+  await session.flush();
+  assert.equal(await pending, false);
+  assert.equal(session.result.screen, "scanner");
+  assert.equal(session.result.status, "Desktop siap");
+  assert.equal(session.result.lastAck, "Keyboard busy");
+});
+
+test("unpaired scans never enter the relay", async () => {
+  const session = makeSession();
+  assert.equal(await session.result.submitScan("899123"), false);
+  assert.equal(session.relay.published.length, 0);
+});
+
+test("reset during a pending scan keeps the reset status and does not reconnect", async () => {
+  const session = await pairedSession();
+  const pending = session.result.submitScan("899123"); await session.flush();
+  await session.result.disconnect(); await session.flush();
+  assert.equal(await pending, false);
+  assert.equal(session.result.status, "Siap pairing");
+  assert.equal(session.storedCode, null);
+  await session.advance(20000);
+  assert.equal(session.relay.connects, 1);
 });

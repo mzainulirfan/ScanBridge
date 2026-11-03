@@ -183,6 +183,9 @@ impl DesktopApp {
         if !self.session.is_trusted(&event.client_id) {
             return Err("Perangkat mobile tidak dikenali".to_string());
         }
+        if !self.session.is_connected() {
+            return Err("Mobile terputus. Hubungkan kembali sebelum scan.".to_string());
+        }
         let barcode = event.barcode.trim();
         if barcode.is_empty() || barcode.chars().count() > 256 {
             return Err("Barcode harus berisi 1-256 karakter".to_string());
@@ -237,6 +240,16 @@ mod tests {
         let mut invalid = event(&app);
         invalid.barcode.clear();
         assert!(app.validate_scan(&invalid).is_err());
+    }
+
+    #[test]
+    fn rejects_scan_after_disconnect_until_trusted_client_reconnects() {
+        let mut app = app();
+        let scan = event(&app);
+        app.disconnect().unwrap();
+        assert!(app.receive_scan_with(scan.clone(), |_, _, _, _, _| panic!("offline scan typed")).is_err());
+        app.connect("client-1").unwrap();
+        assert!(app.receive_scan_with(scan, |_, barcode, _, _, _| Ok(barcode.into())).is_ok());
     }
 
     #[test]

@@ -1,16 +1,8 @@
-import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import type { RealtimeEvent, ScanAckEvent } from "../../../shared/contracts";
-import { buildSessionChannel, isRealtimeEvent, isScanEvent } from "../../../shared/contracts";
+import { SessionConnection, type ConnectionState } from "../../../shared/realtime-session";
 
 type DesktopSupabase = ReturnType<typeof createClient>;
-
-async function authenticate(supabase: DesktopSupabase): Promise<void> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  if (data.session) return;
-  const { error: signInError } = await supabase.auth.signInAnonymously();
-  if (signInError) throw signInError;
-}
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -31,9 +23,10 @@ export function createSupabaseDesktopClient(): DesktopSupabase | null {
 
   try {
     return createClient(url, anonKey, {
+      realtime: { worker: true },
       auth: {
         persistSession: false,
-        autoRefreshToken: false,
+        autoRefreshToken: true,
         detectSessionInUrl: false
       }
     });
@@ -49,76 +42,33 @@ export async function subscribeDesktopSession(
   onConnected: (clientId: string) => Promise<void>,
   onDisconnected: (clientId: string) => Promise<void>,
   onHeartbeat: (clientId: string) => Promise<void>,
-  onSubscribed?: () => Promise<void>
-): Promise<RealtimeChannel> {
-  await authenticate(supabase);
-  const channel = supabase.channel(buildSessionChannel(sessionId), {
-    config: { broadcast: { self: true } }
-  });
-
-  channel.on("broadcast", { event: "client_joined" }, async (payload) => {
-    if (
-      !isRealtimeEvent(payload.payload) ||
-      payload.payload.type !== "client_joined" ||
-      payload.payload.sessionId !== sessionId
-    ) return;
-    await onConnected(payload.payload.clientId);
-  });
-
-  channel.on("broadcast", { event: "client_left" }, async (payload) => {
-    if (
-      !isRealtimeEvent(payload.payload) ||
-      payload.payload.type !== "client_left" ||
-      payload.payload.sessionId !== sessionId
-    ) return;
-    await onDisconnected(payload.payload.clientId);
-  });
-
-  channel.on("broadcast", { event: "client_heartbeat" }, async (payload) => {
-    if (
-      !isRealtimeEvent(payload.payload) ||
-      payload.payload.type !== "client_heartbeat" ||
-      payload.payload.sessionId !== sessionId
-    ) return;
-    await onHeartbeat(payload.payload.clientId);
-  });
-
-  channel.on("broadcast", { event: "scan" }, async (payload) => {
-    if (!isScanEvent(payload.payload) || payload.payload.sessionId !== sessionId) return;
-    const ack = await onScan(payload.payload);
-    if (!ack) return;
-    await channel.send({
-      type: "broadcast",
-      event: "scan_ack",
-      payload: ack
-    });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error("Supabase subscribe timeout")), 10000);
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        window.clearTimeout(timeout);
-        void channel.send({
-          type: "broadcast",
-          event: "desktop_status",
-          payload: {
-            type: "desktop_status",
-            sessionId,
-            status: "waiting_pairing",
-            deviceCount: 0,
-            timestamp: new Date().toISOString()
-          }
-        });
-        void onSubscribed?.();
-        resolve();
+  onSubscribed?: () => Promise<void>,
+  onUnavailable?: (clientId: string) => Promise<void>,
+  onRelayState?: (state: ConnectionState) => void
+): Promise<SessionConnection> {
+  const connection = new SessionConnection(supabase, "desktop");
+  let events = Promise.resolve();
+  const enqueue = (action: () => Promise<void>) => {
+    events = events.then(action).catch(() => onRelayState?.("disconnected"));
+  };
+  connection.onEvent((event) => enqueue(async () => {
+    switch (event.type) {
+      case "client_joined": await onConnected(event.clientId); break;
+      case "client_left": await onDisconnected(event.clientId); break;
+      case "client_heartbeat": await onHeartbeat(event.clientId); break;
+      case "scan": {
+        const ack = await onScan(event);
+        if (ack) await connection.publish(ack);
       }
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        window.clearTimeout(timeout);
-        reject(new Error(`Supabase channel ${status}`));
-      }
-    });
+    }
+  }));
+  connection.onPeerLeft((clientId) => {
+    if (clientId) enqueue(async () => { await onUnavailable?.(clientId); });
   });
-
-  return channel;
+  connection.onStateChange((state) => {
+    onRelayState?.(state);
+    if (state === "connected") enqueue(async () => { await onSubscribed?.(); });
+  });
+  await connection.connect(sessionId);
+  return connection;
 }

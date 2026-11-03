@@ -83,6 +83,9 @@ function App() {
         </div>
         <SessionStatusPill state={status} />
       </header>
+      {toast && screen !== "scanner" && (
+        <aside className="connection-toast" role="status" aria-live="polite">{toast}</aside>
+      )}
       {installPrompt && screen === "home" && (
         <aside className="install-banner">
           <span>Pasang ScanBridge di layar utama.</span>

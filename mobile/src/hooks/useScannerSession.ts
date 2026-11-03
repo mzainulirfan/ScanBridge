@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prepareScannerSound, scannerSuccessSound, vibrate } from "../lib/feedback";
 import { createRealtimeClient } from "../lib/realtime";
+import { HEARTBEAT_INTERVAL_MS, PEER_TIMEOUT_MS } from "../../../shared/realtime-session";
 import { createScanEvent, isValidScanValue } from "../lib/scanner";
 import {
   clearSessionFromLocation,
@@ -22,7 +23,6 @@ import {
 } from "../shared/contracts";
 
 export type ScannerState = "home" | "connect" | "scanner";
-const DESKTOP_HEARTBEAT_TIMEOUT_MS = 30000;
 const PAIRING_CONFIRM_TIMEOUT_MS = 10000;
 const AUTO_RECONNECT_DELAY_MS = 5000;
 const SCAN_ACK_TIMEOUT_MS = 5000;
@@ -48,6 +48,7 @@ export function useScannerSession() {
   const clientId = useRef(getOrCreateStoredClientId());
   const resumeAttempt = useRef(Boolean(initialSessionId));
   const lastDesktopSeenAt = useRef(0);
+  const paired = useRef(false);
   const pairingTimer = useRef<number | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
@@ -74,6 +75,7 @@ export function useScannerSession() {
         reject(new Error("Scanner ditutup"));
       });
       pendingScans.current.clear();
+      void realtime.disconnect().catch(() => {});
     };
   }, []);
 
@@ -89,6 +91,7 @@ export function useScannerSession() {
       reconnectTimer.current !== null ||
       !resumeAttempt.current ||
       !realtime.configured ||
+      document.visibilityState === "hidden" || navigator.onLine === false ||
       !isValidPairingCode(sessionId)
     ) return;
 
@@ -98,19 +101,35 @@ export function useScannerSession() {
     }, AUTO_RECONNECT_DELAY_MS);
   }, [realtime.configured, sessionId]);
 
+  const rejectPendingScans = useCallback((message: string) => {
+    pendingScans.current.forEach(({ reject, timer }) => {
+      window.clearTimeout(timer);
+      reject(new Error(message));
+    });
+    pendingScans.current.clear();
+  }, []);
+
+  const connectionLost = useCallback((message: string) => {
+    paired.current = false;
+    lastDesktopSeenAt.current = 0;
+    if (pairingTimer.current !== null) window.clearTimeout(pairingTimer.current);
+    pairingTimer.current = null;
+    rejectPendingScans(message);
+    setPairingPending(false);
+    setScreen("home");
+    setStatus(message);
+    setLastAck("Pairing tetap tersimpan. Akan tersambung kembali saat kedua perangkat aktif dan online.");
+    showToast(message);
+    scheduleAutoReconnect();
+  }, [rejectPendingScans, scheduleAutoReconnect, showToast]);
+
   const disconnect = useCallback(
     async (notifyDesktop = true) => {
       resumeAttempt.current = false;
+      paired.current = false;
+      rejectPendingScans("Pairing diputus");
       clearAutoReconnect();
       setPairingPending(false);
-      if (notifyDesktop && isValidPairingCode(sessionId)) {
-        try {
-          await realtime.publish(createClientLeftEvent(sessionId, clientId.current));
-        } catch {
-          // Continue with local disconnect when the relay is already unavailable.
-        }
-      }
-      await realtime.disconnect();
       clearStoredPairingCode();
       clearSessionFromLocation();
       clearAutoReconnect();
@@ -125,12 +144,21 @@ export function useScannerSession() {
       }
       setStatus("Siap pairing");
       setScreen("home");
+      if (notifyDesktop && isValidPairingCode(sessionId)) {
+        try {
+          await realtime.publish(createClientLeftEvent(sessionId, clientId.current));
+        } catch {
+          // Continue with local disconnect when the relay is already unavailable.
+        }
+      }
+      await realtime.disconnect();
     },
-    [clearAutoReconnect, realtime, sessionId]
+    [clearAutoReconnect, realtime, rejectPendingScans, sessionId]
   );
 
   useEffect(() => {
     realtime.onEvent?.((event) => {
+      if (event.sessionId !== sessionId) return;
       if (event.type === "desktop_status") {
         lastDesktopSeenAt.current = Date.now();
         if (event.status === "idle") {
@@ -138,8 +166,10 @@ export function useScannerSession() {
           return;
         }
         if (event.status === "waiting_pairing" && isValidPairingCode(sessionId)) {
+          if (paired.current) connectionLost("Desktop menyambungkan ulang");
           setStatus("Menyambungkan kembali");
-          void realtime.publish(createClientJoinedEvent(sessionId, clientId.current));
+          void realtime.publish(createClientJoinedEvent(sessionId, clientId.current))
+            .catch(() => connectionLost("Koneksi terputus"));
           return;
         }
         if (event.status !== "connected" || event.clientId !== clientId.current) return;
@@ -148,8 +178,10 @@ export function useScannerSession() {
           pairingTimer.current = null;
         }
         clearAutoReconnect();
+        const wasPaired = paired.current;
+        paired.current = true;
         setStatus("Desktop siap");
-        setLastAck("Desktop online. Scanner siap digunakan.");
+        if (!wasPaired) setLastAck("Desktop online. Scanner siap digunakan.");
         storePairingCode(event.sessionId);
         resumeAttempt.current = true;
         setPairingPending(false);
@@ -160,20 +192,37 @@ export function useScannerSession() {
         if (!pending) return;
         window.clearTimeout(pending.timer);
         pendingScans.current.delete(event.scanId);
+        lastDesktopSeenAt.current = Date.now();
         pending.resolve(event);
       }
     });
-  }, [clearAutoReconnect, disconnect, realtime]);
+    realtime.onPeerLeft?.(() => {
+      if (paired.current || resumeAttempt.current) connectionLost("Desktop offline");
+    });
+    realtime.onStateChange?.((state) => {
+      if (state === "disconnected" && (paired.current || pairingPending || resumeAttempt.current)) {
+        connectionLost("Koneksi terputus");
+      } else if (state === "connected" && resumeAttempt.current && !pairingPending) {
+        void realtime.publish(createClientJoinedEvent(sessionId, clientId.current))
+          .catch(() => connectionLost("Koneksi terputus"));
+      }
+    });
+    return () => {
+      realtime.onEvent?.(() => {});
+      realtime.onPeerLeft?.(() => {});
+      realtime.onStateChange?.(() => {});
+    };
+  }, [clearAutoReconnect, connectionLost, disconnect, pairingPending, realtime, sessionId]);
 
   useEffect(() => {
     if (screen !== "scanner" || pairingPending || !realtime.configured || !isValidPairingCode(sessionId)) return;
     const sendHeartbeat = () => {
       void realtime
         .publish(createClientHeartbeatEvent(sessionId, clientId.current))
-        .catch(() => setStatus("Koneksi tidak stabil"));
+        .catch(() => connectionLost("Koneksi terputus"));
     };
     sendHeartbeat();
-    const heartbeat = window.setInterval(sendHeartbeat, 4000);
+    const heartbeat = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") sendHeartbeat();
     };
@@ -182,24 +231,49 @@ export function useScannerSession() {
       window.clearInterval(heartbeat);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [pairingPending, realtime, screen, sessionId]);
+  }, [connectionLost, pairingPending, realtime, screen, sessionId]);
 
   useEffect(() => {
     if (screen !== "scanner") return;
 
     const watchdog = window.setInterval(() => {
       const lastSeen = lastDesktopSeenAt.current;
-      if (lastSeen > 0 && Date.now() - lastSeen > DESKTOP_HEARTBEAT_TIMEOUT_MS) {
-        lastDesktopSeenAt.current = 0;
-        setStatus("Desktop offline");
-        setLastAck("Pairing tetap tersimpan. Scanner akan tersambung saat desktop aktif.");
-        setScreen("home");
-        scheduleAutoReconnect();
-      }
+      if (lastSeen > 0 && Date.now() - lastSeen >= PEER_TIMEOUT_MS) connectionLost("Desktop offline");
     }, 2000);
 
     return () => window.clearInterval(watchdog);
-  }, [scheduleAutoReconnect, screen]);
+  }, [connectionLost, screen]);
+
+  useEffect(() => {
+    const suspend = () => {
+      if (!paired.current && !resumeAttempt.current) return;
+      connectionLost(navigator.onLine === false ? "Internet terputus" : "Koneksi dijeda");
+      clearAutoReconnect();
+      void realtime.disconnect().catch(() => {});
+    };
+    const resume = () => {
+      if (document.visibilityState === "hidden" || navigator.onLine === false ||
+          !resumeAttempt.current || !isValidPairingCode(sessionId)) return;
+      if (paired.current && Date.now() - lastDesktopSeenAt.current < PEER_TIMEOUT_MS) return;
+      paired.current = false;
+      clearAutoReconnect();
+      setScreen("home");
+      setPairingPending(true);
+    };
+    const visibility = () => document.visibilityState === "hidden" ? suspend() : resume();
+    window.addEventListener("pagehide", suspend);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("offline", suspend);
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      window.removeEventListener("pagehide", suspend);
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("offline", suspend);
+      window.removeEventListener("online", resume);
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, [clearAutoReconnect, connectionLost, realtime, sessionId]);
 
   useEffect(() => {
     if (pairingPending) {
@@ -212,6 +286,7 @@ export function useScannerSession() {
         return;
       }
       setStatus("Menghubungkan");
+      paired.current = false;
       lastDesktopSeenAt.current = 0;
       if (pairingTimer.current !== null) window.clearTimeout(pairingTimer.current);
       pairingTimer.current = window.setTimeout(() => {
@@ -232,18 +307,18 @@ export function useScannerSession() {
         if (resumeAttempt.current) {
           finishTimeout();
         } else {
-          void realtime.disconnect().then(finishTimeout);
+          void realtime.disconnect().then(finishTimeout, finishTimeout);
         }
       }, PAIRING_CONFIRM_TIMEOUT_MS);
       void realtime
-        .connect(sessionId)
+        .connect(sessionId, clientId.current)
         .then(async () => {
           if (cancelled) return;
           await realtime.publish(createClientJoinedEvent(sessionId, clientId.current));
           await realtime.publish(createClientHeartbeatEvent(sessionId, clientId.current));
         })
         .then(() => {
-          if (cancelled) return;
+          if (cancelled || paired.current) return;
           setStatus("Terhubung ke relay");
           setLastAck("Sinyal pairing terkirim. Desktop seharusnya menampilkan mobile terhubung.");
         })
@@ -300,6 +375,10 @@ export function useScannerSession() {
 
   const submitScan = useCallback(
     async (value: string, symbology?: string): Promise<boolean> => {
+      if (!paired.current || screen !== "scanner" || !isValidPairingCode(sessionId)) {
+        showToast("Hubungkan desktop sebelum mengirim barcode");
+        return false;
+      }
       const clean = normalizeBarcode(value);
       if (!isValidScanValue(clean)) {
         setLastAck("Barcode masih kosong.");
@@ -316,11 +395,13 @@ export function useScannerSession() {
         pendingScans.current.set(event.scanId, { resolve, reject, timer });
       });
 
+      let acknowledged = false;
       try {
-        await realtime.publish(event);
         setBarcode(clean);
         setLastAck(`Menunggu konfirmasi desktop: ${clean}`);
-        const ack = await ackPromise;
+        const [, ack] = await Promise.all([realtime.publish(event), ackPromise]);
+        if (!paired.current) return false;
+        acknowledged = true;
         if (!ack.success) throw new Error(ack.message || "Desktop gagal mengetik barcode");
         setLastAck(`Berhasil diketik: ${clean}`);
         setStatus("Desktop siap");
@@ -332,17 +413,20 @@ export function useScannerSession() {
         const pending = pendingScans.current.get(event.scanId);
         if (pending) window.clearTimeout(pending.timer);
         pendingScans.current.delete(event.scanId);
+        if (!resumeAttempt.current && !paired.current) return false;
         const message = error instanceof Error ? error.message : "Pengiriman barcode gagal";
+        if (!acknowledged) connectionLost("Desktop tidak merespons");
         setLastAck(message);
-        setStatus("Terputus");
+        if (acknowledged) setStatus("Desktop siap");
         showToast(message);
         return false;
       }
     },
-    [realtime, sessionId, showToast]
+    [connectionLost, realtime, screen, sessionId, showToast]
   );
 
   const reconnect = useCallback(async () => {
+    paired.current = false;
     clearAutoReconnect();
     setStatus("Menyambungkan ulang");
     setScreen("home");

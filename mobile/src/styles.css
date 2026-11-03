@@ -90,6 +90,15 @@ h1 {
   border-color: rgba(48, 209, 88, 0.45);
 }
 
+.connection-toast {
+  padding: 12px;
+  border: 1px solid #bd5b32;
+  border-radius: 4px;
+  background: #fff2e9;
+  color: #78320f;
+  font-size: 13px;
+}
+
 .install-banner {
   position: fixed;
   right: 12px;

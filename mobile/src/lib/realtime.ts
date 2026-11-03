@@ -1,15 +1,17 @@
-import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { RealtimeEvent } from "../shared/contracts";
-import { buildSessionChannel, isRealtimeEvent } from "../shared/contracts";
+import { SessionConnection, type ConnectionState } from "../../../shared/realtime-session";
+export type { ConnectionState } from "../../../shared/realtime-session";
 
-export type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 
 export interface RealtimeClient {
   readonly configured: boolean;
-  connect(sessionId: string): Promise<void>;
+  connect(sessionId: string, clientId?: string): Promise<void>;
   publish(event: RealtimeEvent): Promise<void>;
   disconnect(): Promise<void>;
   onEvent?(handler: (event: RealtimeEvent) => void): void;
+  onStateChange?(handler: (state: ConnectionState) => void): void;
+  onPeerLeft?(handler: () => void): void;
 }
 
 export function createSupabaseBrowserClient(): SupabaseClient | null {
@@ -42,97 +44,9 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-export class SupabaseRealtimeClient implements RealtimeClient {
+export class SupabaseRealtimeClient extends SessionConnection implements RealtimeClient {
   readonly configured = true;
-  private supabase: SupabaseClient;
-  private channel: RealtimeChannel | null = null;
-  private sessionId: string | null = null;
-  private eventHandler: ((event: RealtimeEvent) => void) | null = null;
-  private authentication: Promise<void> | null = null;
-
-  constructor(supabase: SupabaseClient) {
-    this.supabase = supabase;
-  }
-
-  async connect(sessionId: string): Promise<void> {
-    await this.disconnect();
-    await this.authenticate();
-    this.sessionId = sessionId;
-    this.channel = this.supabase.channel(buildSessionChannel(sessionId), {
-      config: {
-        broadcast: { self: true }
-      }
-    });
-
-    this.channel.on("broadcast", { event: "desktop_status" }, (payload) => {
-      if (isRealtimeEvent(payload.payload) && payload.payload.sessionId === this.sessionId) {
-        this.eventHandler?.(payload.payload);
-      }
-    });
-    this.channel.on("broadcast", { event: "scan_ack" }, (payload) => {
-      if (isRealtimeEvent(payload.payload) && payload.payload.sessionId === this.sessionId) {
-        this.eventHandler?.(payload.payload);
-      }
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(() => reject(new Error("Supabase subscribe timeout")), 10000);
-      this.channel?.subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          window.clearTimeout(timeout);
-          resolve();
-        }
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          window.clearTimeout(timeout);
-          reject(new Error(`Supabase channel ${status}`));
-        }
-      });
-    });
-  }
-
-  async publish(event: RealtimeEvent): Promise<void> {
-    if (!this.channel || this.sessionId !== event.sessionId) {
-      throw new Error("Realtime channel is not connected to this session");
-    }
-
-    const response = await this.channel.send({
-      type: "broadcast",
-      event: event.type,
-      payload: event
-    });
-
-    if (response !== "ok") {
-      throw new Error(`Supabase broadcast failed: ${response}`);
-    }
-  }
-
-  async disconnect(): Promise<void> {
-    if (this.channel) {
-      await this.supabase.removeChannel(this.channel);
-    }
-    this.channel = null;
-    this.sessionId = null;
-  }
-
-  onEvent(handler: (event: RealtimeEvent) => void): void {
-    this.eventHandler = handler;
-  }
-
-  private async authenticate(): Promise<void> {
-    if (!this.authentication) {
-      this.authentication = (async () => {
-        const { data, error } = await this.supabase.auth.getSession();
-        if (error) throw error;
-        if (data.session) return;
-        const { error: signInError } = await this.supabase.auth.signInAnonymously();
-        if (signInError) throw signInError;
-      })().catch((error) => {
-        this.authentication = null;
-        throw error;
-      });
-    }
-    await this.authentication;
-  }
+  constructor(supabase: SupabaseClient) { super(supabase, "mobile"); }
 }
 
 export class MockRealtimeClient implements RealtimeClient {

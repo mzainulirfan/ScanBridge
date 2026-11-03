@@ -32,6 +32,14 @@ fn main() {
             });
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("ScanBridge");
+                // WebView timers can be throttled while the scanner runs in the tray.
+                // Native events keep heartbeats and disconnect checks running while hidden.
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    if window.emit("connection-tick", ()).is_err() {
+                        break;
+                    }
+                });
             }
             let open_item = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
             let exit_item = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;

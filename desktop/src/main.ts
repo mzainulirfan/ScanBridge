@@ -4,6 +4,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import QRCode from "qrcode";
 import { createSupabaseDesktopClient, subscribeDesktopSession } from "./lib/realtime";
+import { HEARTBEAT_INTERVAL_MS, PEER_TIMEOUT_MS } from "../../shared/realtime-session";
 import "./styles.css";
 
 type TabName = "summary" | "output" | "activity";
@@ -54,8 +55,15 @@ const updateInstallEl = byId<HTMLButtonElement>("update-install");
 const updateDismissEl = byId<HTMLButtonElement>("update-dismiss");
 
 let activeChannel: Awaited<ReturnType<typeof subscribeDesktopSession>> | null = null;
-let heartbeatTimer: number | null = null;
-let mobileWatchdogTimer: number | null = null;
+let heartbeatEnabled = false;
+let watchdogEnabled = false;
+let lastDesktopBroadcastAt = 0;
+let relayOnline = false;
+let mobileOnline = false;
+let startingRealtime = false;
+let stoppingRealtime = false;
+let retryRealtimeAt = 0;
+let desktopSupabase: ReturnType<typeof createSupabaseDesktopClient> = null;
 let lastMobileSeenAt = 0;
 let autoHidden = false;
 let currentPairing: PairingInfo | null = null;
@@ -107,32 +115,29 @@ function formatPairingCode(value: string): string {
 }
 
 async function broadcastDesktopStatus() {
-  if (!activeChannel || !currentPairing) return;
+  const connection = activeChannel;
+  const pairing = currentPairing;
+  if (!connection || !pairing || !relayOnline) return;
   try {
     const currentStatus = await invoke<DesktopStatus>("get_status");
-    await activeChannel.send({
-      type: "broadcast",
-      event: "desktop_status",
-      payload: {
-        type: "desktop_status",
-        sessionId: currentPairing.sessionId,
-        status: currentStatus.status === "connected" ? "connected" : "waiting_pairing",
-        deviceCount: currentStatus.status === "connected" ? 1 : 0,
-        clientId: currentStatus.clientId,
-        timestamp: new Date().toISOString()
-      }
+    if (connection !== activeChannel || !relayOnline) return;
+    await connection.publish({
+      type: "desktop_status",
+      sessionId: pairing.sessionId,
+      status: currentStatus.status === "connected" ? "connected" : "waiting_pairing",
+      deviceCount: currentStatus.status === "connected" ? 1 : 0,
+      clientId: currentStatus.clientId,
+      timestamp: new Date().toISOString()
     });
   } catch {
-    // The mobile watchdog handles a relay or desktop connection that goes silent.
+    if (connection === activeChannel) handleRelayLoss();
   }
 }
 
 function startDesktopHeartbeat() {
-  if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
+  heartbeatEnabled = true;
+  lastDesktopBroadcastAt = Date.now();
   void broadcastDesktopStatus();
-  heartbeatTimer = window.setInterval(() => {
-    void broadcastDesktopStatus();
-  }, 4000);
 }
 
 function markMobileSeen() {
@@ -140,22 +145,49 @@ function markMobileSeen() {
 }
 
 function startMobileWatchdog() {
-  if (mobileWatchdogTimer !== null) window.clearInterval(mobileWatchdogTimer);
-  mobileWatchdogTimer = window.setInterval(() => {
-    if (lastMobileSeenAt === 0 || Date.now() - lastMobileSeenAt <= 30000) return;
-    lastMobileSeenAt = 0;
-    mobileStatusEl.textContent = "menunggu";
-    mobileStatusEl.dataset.state = "idle";
-    autoHidden = false;
-    void invoke("mark_disconnected").then(() => loadStatus(false));
-    void invoke("show_main_window");
-    setMessage(summaryMessageEl, "mobile.timeout / siap untuk pairing", "idle");
-  }, 2000);
+  watchdogEnabled = true;
+}
+
+async function markMobileOffline(message: string) {
+  const wasOnline = mobileOnline;
+  mobileOnline = false;
+  lastMobileSeenAt = 0;
+  autoHidden = false;
+  mobileStatusEl.textContent = "terputus";
+  mobileStatusEl.dataset.state = "error";
+  lastEventEl.textContent = "mobile.disconnected";
+  setMessage(summaryMessageEl, message, "error");
+  await invoke("mark_disconnected");
+  await loadStatus(false);
+  if (wasOnline) await invoke("show_main_window");
+}
+
+function handleRelayLoss() {
+  if (!relayOnline && retryRealtimeAt) return;
+  relayOnline = false;
+  relayStatusEl.textContent = "terputus / mencoba ulang";
+  relayStatusEl.dataset.state = "error";
+  retryRealtimeAt = Date.now() + 3000;
+  void markMobileOffline("Koneksi relay terputus. Menyambungkan ulang; pairing tetap tersimpan.")
+    .catch((error) => setMessage(summaryMessageEl, errorMessage(error, "Gagal memperbarui status."), "error"));
+}
+
+function connectionTick() {
+  const now = Date.now();
+  if (retryRealtimeAt && now >= retryRealtimeAt && navigator.onLine !== false) void startRealtime();
+  if (heartbeatEnabled && now - lastDesktopBroadcastAt >= HEARTBEAT_INTERVAL_MS) {
+    lastDesktopBroadcastAt = now;
+    void broadcastDesktopStatus();
+  }
+  if (watchdogEnabled && mobileOnline && lastMobileSeenAt && now - lastMobileSeenAt >= PEER_TIMEOUT_MS) {
+    void markMobileOffline("Mobile tidak merespons. Pairing tersimpan; menunggu mobile aktif kembali.")
+      .catch((error) => setMessage(summaryMessageEl, errorMessage(error, "Gagal memperbarui status."), "error"));
+  }
 }
 
 async function loadStatus(allowAutoHide = true) {
   const result = await invoke<DesktopStatus>("get_status");
-  const connected = result.status === "connected";
+  const connected = result.status === "connected" && relayOnline && mobileOnline;
   statusEl.textContent = connected ? "[x] terhubung" : "[ ] menunggu";
   statusEl.dataset.state = connected ? "active" : "idle";
   sessionStateEl.textContent = connected ? "session.connected" : "session.active";
@@ -166,9 +198,13 @@ async function loadStatus(allowAutoHide = true) {
 }
 
 async function startRealtime() {
+  if (startingRealtime || stoppingRealtime) return;
+  startingRealtime = true;
+  retryRealtimeAt = 0;
   const pairing = currentPairing ?? (await invoke<PairingInfo>("get_pairing_info"));
-  const supabase = createSupabaseDesktopClient();
+  const supabase = desktopSupabase ??= createSupabaseDesktopClient();
   if (!supabase) {
+    startingRealtime = false;
     relayStatusEl.textContent = "env belum diatur";
     relayStatusEl.dataset.state = "error";
     mobileStatusEl.textContent = "tidak terhubung";
@@ -184,16 +220,18 @@ async function startRealtime() {
   }
 
   try {
+    const previous = activeChannel;
+    activeChannel = null;
+    await previous?.disconnect();
     relayStatusEl.textContent = "menghubungkan";
     relayStatusEl.dataset.state = "loading";
     activeChannel = await subscribeDesktopSession(
       supabase,
       pairing.sessionId,
       async (event) => {
-        if (activeClientId && event.type === "scan" && event.clientId !== activeClientId) return null;
+        if (!mobileOnline || event.type !== "scan" || event.clientId !== activeClientId) return null;
         markMobileSeen();
         lastEventEl.textContent = event.type;
-        if (event.type !== "scan") return null;
 
         lastScanEl.textContent = event.barcode;
         try {
@@ -221,6 +259,7 @@ async function startRealtime() {
         try {
           await invoke("mark_connected", { clientId });
           activeClientId = clientId;
+          mobileOnline = true;
           markMobileSeen();
           mobileStatusEl.textContent = "terhubung";
           mobileStatusEl.dataset.state = "active";
@@ -234,6 +273,7 @@ async function startRealtime() {
       async (clientId) => {
         if (activeClientId !== clientId) return;
         lastMobileSeenAt = 0;
+        mobileOnline = false;
         activeClientId = null;
         mobileStatusEl.textContent = "menunggu";
         mobileStatusEl.dataset.state = "idle";
@@ -245,17 +285,38 @@ async function startRealtime() {
       },
       async (clientId) => {
         if (activeClientId !== clientId) return;
+        if (!mobileOnline) {
+          await invoke("mark_connected", { clientId });
+          mobileOnline = true;
+          mobileStatusEl.textContent = "terhubung";
+          mobileStatusEl.dataset.state = "active";
+          await loadStatus(false);
+          await broadcastDesktopStatus();
+        }
         markMobileSeen();
       },
       async () => {
         relayStatusEl.textContent = "aktif";
         relayStatusEl.dataset.state = "active";
-        setMessage(summaryMessageEl, "relay.siap / masukkan kode pairing di mobile", "success");
+        if (!mobileOnline) setMessage(summaryMessageEl, "Relay siap. Menunggu mobile tersambung.", "success");
+      },
+      async (clientId) => {
+        if (activeClientId !== clientId) return;
+        await markMobileOffline("Mobile terputus. Pairing tersimpan; buka kembali aplikasi di ponsel.");
+      },
+      (state) => {
+        if (state === "connected") {
+          relayOnline = true;
+          retryRealtimeAt = 0;
+        } else if (state === "disconnected") {
+          handleRelayLoss();
+        }
       }
     );
     startDesktopHeartbeat();
     startMobileWatchdog();
   } catch (error) {
+    handleRelayLoss();
     relayStatusEl.textContent = "gagal";
     relayStatusEl.dataset.state = "error";
     mobileStatusEl.textContent = "tidak terhubung";
@@ -263,6 +324,8 @@ async function startRealtime() {
     statusEl.textContent = "[!] relay gagal";
     statusEl.dataset.state = "error";
     setMessage(summaryMessageEl, errorMessage(error, "Koneksi realtime gagal."), "error");
+  } finally {
+    startingRealtime = false;
   }
 }
 
@@ -361,28 +424,24 @@ function openClearHistoryDialog() {
 }
 
 async function disconnectSession() {
+  stoppingRealtime = true;
   const pairing = currentPairing ?? (await invoke<PairingInfo>("get_pairing_info"));
-  if (activeChannel) {
-    await activeChannel.send({
-      type: "broadcast",
-      event: "desktop_status",
-      payload: {
+  try {
+    if (activeChannel) await activeChannel.publish({
         type: "desktop_status",
         sessionId: pairing.sessionId,
         status: "idle",
         deviceCount: 0,
         timestamp: new Date().toISOString()
-      }
     });
+  } catch {
+    // Reset still completes when the relay is unavailable.
   }
-  if (heartbeatTimer !== null) {
-    window.clearInterval(heartbeatTimer);
-    heartbeatTimer = null;
-  }
-  if (mobileWatchdogTimer !== null) {
-    window.clearInterval(mobileWatchdogTimer);
-    mobileWatchdogTimer = null;
-  }
+  heartbeatEnabled = false;
+  watchdogEnabled = false;
+  retryRealtimeAt = 0;
+  relayOnline = false;
+  await activeChannel?.disconnect();
   await invoke("reset_pairing_code");
   window.location.reload();
 }
@@ -502,6 +561,11 @@ void listen("tray-opened", () => {
 
 async function initialize() {
   try {
+    await listen("connection-tick", connectionTick);
+    window.addEventListener("offline", handleRelayLoss);
+    window.addEventListener("online", () => {
+      if (!relayOnline) void startRealtime();
+    });
     await Promise.all([loadPairing(), loadStatus(false), loadSettings(), loadHistory()]);
     await startRealtime();
     void checkForUpdates();
