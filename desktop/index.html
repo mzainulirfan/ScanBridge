@@ -7,155 +7,86 @@
     <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
-    <main class="app-frame">
+    <main id="app-frame" class="app-frame">
       <header class="app-header">
-        <div class="brand">
-          <span class="brand-mark">[SB]</span>
-          <div>
-            <h1>ScanBridge</h1>
-            <p>desktop relay / v0.1</p>
-          </div>
-        </div>
-        <span id="status" class="status-badge" data-state="loading">[ ] memuat</span>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M4 10V5h5m10 0h5v5M4 18v5h5m10 0h5v-5M9 10v8m4-8v8m3-8v8m3-8v8" /></svg></span><div><h1>ScanBridge<span class="brand-desktop">Desktop</span></h1><p>Scanner ponsel, langsung ke komputer.</p></div></div>
+        <span id="status" class="status-badge" data-state="loading" role="status">Memuat aplikasi</span>
       </header>
-
-      <nav class="tab-list" role="tablist" aria-label="Navigasi utama">
-        <button id="tab-summary" class="tab-button active" data-tab="summary" role="tab" aria-selected="true">
-          Ringkasan
-        </button>
-        <button id="tab-output" class="tab-button" data-tab="output" role="tab" aria-selected="false">
-          Output
-        </button>
-        <button id="tab-activity" class="tab-button" data-tab="activity" role="tab" aria-selected="false">
-          Aktivitas
-        </button>
-      </nav>
-
-      <div class="tab-content">
-        <section id="panel-summary" class="tab-panel active" data-panel="summary" role="tabpanel" aria-labelledby="tab-summary">
-          <section class="pairing-terminal" aria-labelledby="pairing-heading">
-            <div class="terminal-bar">
-              <h2 id="pairing-heading">pair_device</h2>
-              <span id="session-state">session.active</span>
-            </div>
-            <p class="terminal-line"><span class="prompt">&gt;</span> Masukkan kode pairing ini di ponsel</p>
-            <div id="pairing-code" class="pairing-code">-------- -------- -------- --------</div>
-            <img id="pairing-qr" class="pairing-qr" alt="QR untuk membuka ScanBridge di ponsel" />
-            <p id="pairing-url" class="terminal-note">menyiapkan sesi...</p>
-            <div class="button-row">
-              <button id="copy-code" class="button-inverse" type="button">[salin]</button>
-              <button id="new-code" class="button-ghost-dark" type="button">[kode baru]</button>
-              <button id="disconnect-session" class="button-danger-dark" type="button">[putus]</button>
-            </div>
-          </section>
-
-          <section class="section-block">
-            <div class="section-heading">
-              <h2>Koneksi</h2>
-              <span>kesehatan realtime</span>
-            </div>
-            <dl class="status-grid">
-              <div>
-                <dt>[01] Relay</dt>
-                <dd id="relay-status" class="signal-value" data-state="loading">memulai</dd>
-              </div>
-              <div>
-                <dt>[02] Mobile</dt>
-                <dd id="mobile-status" class="signal-value" data-state="idle">menunggu</dd>
-              </div>
-              <div>
-                <dt>[03] Event terakhir</dt>
-                <dd id="last-event">-</dd>
-              </div>
-              <div>
-                <dt>[04] Scan terakhir</dt>
-                <dd id="last-scan">-</dd>
-              </div>
-            </dl>
-          </section>
-
-          <p id="summary-message" class="console-message" data-state="idle" aria-live="polite">system.ready</p>
-        </section>
-
-        <section id="panel-output" class="tab-panel" data-panel="output" role="tabpanel" aria-labelledby="tab-output" hidden>
-          <section class="section-block first-block">
-            <div class="section-heading">
-              <h2>Keyboard output</h2>
-              <span>field aktif</span>
-            </div>
-            <div class="toggle-list">
-              <label><input id="auto-enter" type="checkbox" /> <span>Auto Enter setelah barcode</span></label>
-              <label><input id="auto-tab" type="checkbox" /> <span>Auto Tab setelah barcode</span></label>
-              <label><input id="history-enabled" type="checkbox" /> <span>Simpan aktivitas di PC ini</span></label>
-            </div>
-            <div class="field-grid">
-              <label>
-                <span>Prefix</span>
-                <input id="prefix" placeholder="kosong" />
-              </label>
-              <label>
-                <span>Suffix</span>
-                <input id="suffix" placeholder="kosong" />
-              </label>
-            </div>
-            <button id="save-settings" class="button-primary" type="button">[simpan pengaturan]</button>
-          </section>
-
-          <section class="section-block">
-            <div class="section-heading">
-              <h2>Uji output</h2>
-              <span>simulasi scan</span>
-            </div>
-            <label class="stacked-field">
-              <span>Barcode uji</span>
-              <input id="test-barcode" value="8991234567890" />
-            </label>
-            <button id="send-test" class="button-secondary" type="button">[ketik ke field aktif]</button>
-          </section>
-
-          <p id="output-message" class="console-message" data-state="idle" aria-live="polite">pengaturan.siap</p>
-        </section>
-
-        <section id="panel-activity" class="tab-panel" data-panel="activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
-          <section class="activity-header">
-            <div>
-              <h2>Aktivitas scan</h2>
-              <p id="activity-count">memuat riwayat...</p>
-            </div>
-            <button id="clear-history" class="button-danger" type="button">[hapus semua]</button>
-          </section>
-          <div id="activity-list" class="activity-list" aria-live="polite">
-            <div class="empty-state">[ ] Memuat aktivitas...</div>
+      <div class="workspace">
+        <nav class="sidebar" aria-label="Navigasi utama">
+          <span class="nav-label">WORKSPACE</span>
+          <div class="tab-list" role="tablist" aria-orientation="vertical">
+            <button id="tab-summary" class="tab-button active" data-tab="summary" role="tab" aria-selected="true" aria-controls="panel-summary" tabindex="0"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><rect x="12" y="12" width="5" height="5" rx="1"/></svg>Ringkasan</button>
+            <button id="tab-output" class="tab-button" data-tab="output" role="tab" aria-selected="false" aria-controls="panel-output" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h12"/><circle cx="7" cy="5" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="8" cy="15" r="2"/></svg>Pengaturan</button>
+            <button id="tab-activity" class="tab-button" data-tab="activity" role="tab" aria-selected="false" aria-controls="panel-activity" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3h8l2 2v12H4V3h2m2 5h5m-5 4h5"/></svg>Riwayat<span id="history-tab-count" class="nav-count">0</span></button>
           </div>
-        </section>
-      </div>
+          <aside class="sidebar-note"><span class="mini-dot"></span><strong>Tetap berjalan di tray</strong><p>Tombol X menyembunyikan jendela. Pilih Exit di tray untuk keluar.</p></aside>
+        </nav>
+        <div class="tab-content">
+          <section id="panel-summary" class="tab-panel active" data-panel="summary" role="tabpanel" aria-labelledby="tab-summary">
+            <div class="page-heading"><div><p class="eyebrow">PUSAT KONTROL</p><h2>Ringkasan</h2></div><span id="live-caption" class="live-caption"><span class="mini-dot"></span><span id="live-caption-text">Menunggu koneksi</span></span></div>
+            <section id="connection-overview" class="connection-overview" data-state="loading" aria-labelledby="connection-title">
+              <span class="connection-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 8V6a4 4 0 0 1 8 0v2M6 9h12v11H6V9m6 4v3"/></svg></span>
+              <div><h3 id="connection-title">Menyiapkan koneksi</h3><p id="connection-description">Memeriksa koneksi dan perangkat tersimpan…</p></div>
+              <button id="retry-connection" class="button-secondary button-small" type="button" hidden>Coba lagi</button>
+            </section>
+            <div class="summary-grid">
+              <section class="card pairing-card" aria-labelledby="pairing-heading">
+                <div class="card-heading"><div><p class="eyebrow">01 / PASANGKAN PERANGKAT</p><h3 id="pairing-heading">Hubungkan ponsel</h3></div><span id="session-state" class="subtle-tag">Sesi baru</span></div>
+                <p id="pairing-instruction" class="card-description">Buka ScanBridge Mobile di ponsel, lalu pindai QR ini.</p>
+                <div class="qr-surface"><img id="pairing-qr" class="pairing-qr" alt="QR pairing untuk menghubungkan ponsel ke komputer ini" width="168" height="168" /></div>
+                <div class="pairing-alternative"><span>Atau masukkan kode secara manual</span><code id="pairing-code" class="pairing-code">-------- -------- -------- --------</code><button id="copy-code" class="button-primary" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="10" rx="1.5"/><path d="M12 7V3H3v10h4"/></svg>Salin kode pairing</button></div>
+                <p id="pairing-url" class="pairing-note">Kode hanya untuk menghubungkan ponsel ke komputer ini.</p>
+              </section>
+              <div class="summary-detail">
+            <section class="card last-scan-card" aria-labelledby="last-scan-heading">
+              <div class="last-scan-content"><div class="card-heading"><h3 id="last-scan-heading">Scan terakhir</h3><span id="last-scan-result" class="result-tag" data-state="idle">Belum ada scan</span></div><p id="last-scan" class="last-barcode">—</p><p id="last-scan-detail" class="muted-text">Hasil dan waktu scan akan tampil di sini.</p></div>
+              <dl class="scan-totals"><div><dt>Tersimpan</dt><dd id="scan-total">0</dd></div><div><dt>Berhasil</dt><dd id="scan-success">0</dd></div><div><dt>Gagal</dt><dd id="scan-failed">0</dd></div></dl>
+            </section>
+                <section class="card connection-card" aria-labelledby="connection-heading">
+                  <div class="card-heading"><div><p class="eyebrow">02 / KONEKSI</p><h3 id="connection-heading">Jalur pengiriman</h3></div></div>
+                  <dl class="connection-path">
+                    <div class="path-row"><span class="path-node" aria-hidden="true">1</span><div><dt>Koneksi server</dt><dd id="relay-status" class="signal-value" data-state="loading">menghubungkan</dd></div><span class="path-caption">Perantara scan</span></div>
+                    <div class="path-row"><span class="path-node" aria-hidden="true">2</span><div><dt>Ponsel</dt><dd id="mobile-status" class="signal-value" data-state="idle">belum terhubung</dd></div><span id="device-label" class="path-caption">Belum dipasangkan</span></div>
+                    <div class="path-row"><span class="path-node" aria-hidden="true">3</span><div><dt>Output komputer</dt><dd id="output-status" class="signal-value" data-state="idle">Menunggu ponsel</dd></div><span id="output-mode" class="path-caption">Barcode + Enter</span></div>
+                  </dl>
+                  <div class="connection-meta"><span>Kontak terakhir ponsel</span><strong id="last-seen">Belum ada kontak</strong></div>
+                  <div class="connection-meta"><span>Aktivitas koneksi</span><strong id="last-event">Menunggu perangkat</strong></div>
+                  <div class="connection-actions"><button id="new-code" class="button-text" type="button">Buat kode baru</button><button id="disconnect-session" class="button-text danger-text" type="button" disabled>Putus &amp; reset</button></div>
+                </section>
+                <p id="summary-message" class="console-message" data-state="idle" role="status" aria-live="polite">Menyiapkan aplikasi…</p>
+              </div>
+            </div>
 
-      <footer>scanbridge://local &middot; tetap aktif di system tray</footer>
+            <p id="history-summary-note" class="page-note">Jumlah berdasarkan riwayat lokal di komputer ini.</p>
+          </section>
+          <section id="panel-output" class="tab-panel" data-panel="output" role="tabpanel" aria-labelledby="tab-output" hidden>
+            <div class="page-heading"><div><p class="eyebrow">SESUAIKAN ALUR KERJA</p><h2>Pengaturan output</h2></div><span id="settings-state" class="subtle-tag">Tersimpan</span></div>
+            <div class="settings-grid">
+              <section class="card settings-card" aria-labelledby="keyboard-heading"><div class="card-heading"><div><h3 id="keyboard-heading">Setelah barcode diketik</h3><p class="card-description">Pilih perpindahan kursor yang sesuai aplikasi Anda.</p></div></div>
+                <div class="toggle-list"><label><input id="auto-enter" type="checkbox" /><span><strong>Tekan Enter otomatis</strong><small>Konfirmasi input atau pindah ke baris berikutnya.</small></span><kbd>↵</kbd></label><label><input id="auto-tab" type="checkbox" /><span><strong>Tekan Tab otomatis</strong><small>Pindah ke kolom atau field berikutnya.</small></span><kbd>⇥</kbd></label></div>
+                <div class="field-grid"><label><span>Awalan <span class="optional-label">opsional</span></span><input id="prefix" maxlength="64" placeholder="Contoh: SKU-" autocomplete="off" /></label><label><span>Akhiran <span class="optional-label">opsional</span></span><input id="suffix" maxlength="64" placeholder="Contoh: -ID" autocomplete="off" /></label></div>
+                <label class="history-toggle"><input id="history-enabled" type="checkbox" /><span><strong>Simpan riwayat di komputer ini</strong><small id="history-limit-note">Menyimpan hingga 100 scan terbaru secara lokal.</small></span></label>
+                <div class="save-row"><button id="save-settings" class="button-primary" type="button">Simpan pengaturan</button><span id="settings-save-hint" class="muted-text">Berlaku untuk scan berikutnya.</span></div>
+              </section>
+              <div class="settings-aside"><section class="card preview-card"><p class="eyebrow">PRATINJAU OUTPUT</p><h3>Yang akan diketik</h3><div class="output-preview"><span id="preview-prefix" class="preview-affix"></span><strong>8991234567890</strong><span id="preview-suffix" class="preview-affix"></span><kbd id="preview-key">Enter ↵</kbd></div><p class="muted-text">Pratinjau berubah saat Anda mengedit. Simpan untuk menerapkannya.</p></section>
+                <section class="card test-card"><div><p class="eyebrow">UJI SEBELUM MEMINDAI</p><h3>Coba pengetikan</h3></div><label class="stacked-field"><span>Barcode uji</span><input id="test-barcode" value="8991234567890" maxlength="256" autocomplete="off" /></label><p class="card-description">Setelah klik tombol, Anda punya <strong>3 detik</strong> untuk pindah ke kolom tujuan.</p><button id="send-test" class="button-secondary" type="button">Mulai uji pengetikan</button></section>
+              </div>
+            </div>
+            <p id="output-message" class="console-message" data-state="idle" role="status" aria-live="polite">Pengaturan siap. Perubahan diterapkan setelah disimpan.</p>
+          </section>
+          <section id="panel-activity" class="tab-panel" data-panel="activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+            <div class="page-heading"><div><p class="eyebrow">TERCATAT DI KOMPUTER INI</p><h2>Riwayat scan</h2><p id="activity-count" class="muted-text">Memuat riwayat…</p></div><button id="clear-history" class="button-secondary danger-text" type="button">Hapus riwayat</button></div>
+            <div class="history-toolbar"><label class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="history-search" type="search" placeholder="Cari barcode atau format…" aria-label="Cari riwayat scan" /></label><div class="history-filters" aria-label="Filter hasil scan"><button data-history-filter="all" class="filter-button active" aria-pressed="true" type="button">Semua</button><button data-history-filter="success" class="filter-button" aria-pressed="false" type="button">Berhasil</button><button data-history-filter="failed" class="filter-button" aria-pressed="false" type="button">Gagal</button></div></div>
+            <div class="card history-card"><div id="activity-list" class="activity-list" aria-live="polite"><div class="empty-state">Memuat riwayat scan…</div></div></div>
+            <p class="page-note">Riwayat hanya disimpan di komputer ini. Menghapus riwayat tidak mengubah data di aplikasi tujuan.</p>
+          </section>
+        </div>
+      </div>
+      <footer><span><span class="mini-dot"></span>ScanBridge <span id="app-version">Desktop</span></span><div><span id="update-status">Memeriksa pembaruan…</span><button id="check-update" class="footer-button" type="button">Cek pembaruan</button></div></footer>
     </main>
-
-    <div id="update-banner" class="update-banner" hidden>
-      <span id="update-message" aria-live="polite">Versi baru tersedia.</span>
-      <div class="update-actions">
-        <button id="update-install" class="button-secondary" type="button">[pasang &amp; restart]</button>
-        <button id="update-dismiss" class="button-inverse" type="button">[nanti]</button>
-      </div>
-    </div>
-
-    <dialog id="clear-history-dialog" class="confirm-dialog" aria-labelledby="clear-history-title">
-      <form method="dialog" class="confirm-dialog-content">
-        <div class="confirm-dialog-header">
-          <span class="confirm-marker" aria-hidden="true">[!]</span>
-          <div>
-            <h2 id="clear-history-title">Hapus seluruh riwayat?</h2>
-            <p>Semua aktivitas scan lokal akan dihapus permanen.</p>
-          </div>
-        </div>
-        <p class="confirm-dialog-note">Tindakan ini tidak dapat dibatalkan.</p>
-        <div class="confirm-dialog-actions">
-          <button id="cancel-clear-history" class="button-secondary" type="button">[batal]</button>
-          <button id="confirm-clear-history" class="button-danger-solid" type="button">[hapus riwayat]</button>
-        </div>
-      </form>
-    </dialog>
+    <aside id="update-banner" class="update-banner" hidden><span id="update-message" aria-live="polite">Versi baru tersedia.</span><div class="update-actions"><button id="update-install" class="button-primary" type="button">Pasang &amp; restart</button><button id="update-dismiss" class="button-secondary" type="button">Nanti</button></div></aside>
+    <dialog id="clear-history-dialog" class="confirm-dialog" aria-labelledby="clear-history-title"><div class="confirm-dialog-content"><span class="dialog-eyebrow">RIWAYAT LOKAL</span><h2 id="clear-history-title">Hapus seluruh riwayat?</h2><p>Semua scan tersimpan di komputer ini akan dihapus permanen. Data di aplikasi tujuan tetap tersedia.</p><div class="confirm-dialog-actions"><button id="cancel-clear-history" class="button-secondary" type="button">Batal</button><button id="confirm-clear-history" class="button-danger-solid" type="button">Hapus riwayat</button></div></div></dialog>
+    <dialog id="reset-pairing-dialog" class="confirm-dialog" aria-labelledby="reset-pairing-title"><div class="confirm-dialog-content"><span class="dialog-eyebrow">KONEKSI PERANGKAT</span><h2 id="reset-pairing-title">Buat kode pairing baru?</h2><p>Koneksi ponsel saat ini akan diputus. Kode lama tidak bisa digunakan lagi; hubungkan kembali ponsel dengan kode baru.</p><div class="confirm-dialog-actions"><button id="cancel-reset-pairing" class="button-secondary" type="button">Batal</button><button id="confirm-reset-pairing" class="button-danger-solid" type="button">Putus &amp; buat kode baru</button></div></div></dialog>
   </body>
 </html>
