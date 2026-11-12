@@ -1,6 +1,7 @@
 import type { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScanResult } from "../lib/scanner";
+import { useLiftDetection } from "./useLiftDetection";
 
 type UseBarcodeScannerOptions = {
   enabled: boolean;
@@ -8,6 +9,8 @@ type UseBarcodeScannerOptions = {
   idleTimeoutMs?: number;
   onScan: (result: ScanResult) => void;
 };
+
+type CameraPauseReason = "none" | "inactivity" | "resting";
 
 function getVideoTrack(video: HTMLVideoElement | null): MediaStreamTrack | null {
   const stream = video?.srcObject instanceof MediaStream ? video.srcObject : null;
@@ -39,7 +42,8 @@ export function useBarcodeScanner({
   const idleTimerRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
-  const [pausedForInactivity, setPausedForInactivity] = useState(false);
+  const [pauseReason, setPauseReason] = useState<CameraPauseReason>("none");
+  const pauseReasonRef = useRef<CameraPauseReason>("none");
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [cameraAttempt, setCameraAttempt] = useState(0);
@@ -55,6 +59,11 @@ export function useBarcodeScanner({
     setTorchEnabled(false);
   }, []);
 
+  const setPause = useCallback((reason: CameraPauseReason) => {
+    pauseReasonRef.current = reason;
+    setPauseReason(reason);
+  }, []);
+
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== null) {
       window.clearTimeout(idleTimerRef.current);
@@ -65,16 +74,27 @@ export function useBarcodeScanner({
   const resetIdleTimer = useCallback(() => {
     clearIdleTimer();
     idleTimerRef.current = window.setTimeout(() => {
-      setPausedForInactivity(true);
+      idleTimerRef.current = null;
+      if (pauseReasonRef.current === "none") setPause("inactivity");
     }, idleTimeoutMs);
-  }, [clearIdleTimer, idleTimeoutMs]);
+  }, [clearIdleTimer, idleTimeoutMs, setPause]);
 
   const resume = useCallback(() => {
     setError(null);
-    setPausedForInactivity(false);
+    setPause("none");
     setCameraAttempt(attempt => attempt + 1);
     resetIdleTimer();
-  }, [resetIdleTimer]);
+  }, [resetIdleTimer, setPause]);
+
+  const lift = useLiftDetection({
+    enabled,
+    onRest: useCallback(() => {
+      if (pauseReasonRef.current !== "resting") setPause("resting");
+    }, [setPause]),
+    onLift: useCallback(() => {
+      if (pauseReasonRef.current !== "none") resume();
+    }, [resume])
+  });
 
   const toggleTorch = useCallback(async () => {
     const track = getVideoTrack(videoRef.current);
@@ -95,7 +115,7 @@ export function useBarcodeScanner({
   }, [torchEnabled, torchSupported]);
 
   useEffect(() => {
-    if (!enabled || pausedForInactivity) {
+    if (!enabled || pauseReason !== "none") {
       stop();
       return;
     }
@@ -178,23 +198,30 @@ export function useBarcodeScanner({
       cancelled = true;
       stop();
     };
-  }, [cameraAttempt, cooldownMs, enabled, pausedForInactivity, resetIdleTimer, stop]);
+  }, [cameraAttempt, cooldownMs, enabled, pauseReason, resetIdleTimer, stop]);
 
   useEffect(() => {
-    if (!enabled || pausedForInactivity) {
+    if (!enabled) {
       clearIdleTimer();
-      if (!enabled) setPausedForInactivity(false);
+      if (pauseReasonRef.current !== "none") setPause("none");
+      return;
+    }
+
+    if (pauseReason !== "none") {
+      clearIdleTimer();
       return;
     }
 
     resetIdleTimer();
     return clearIdleTimer;
-  }, [clearIdleTimer, enabled, pausedForInactivity, resetIdleTimer]);
+  }, [clearIdleTimer, enabled, pauseReason, resetIdleTimer, setPause]);
 
   return {
     videoRef,
     active,
-    pausedForInactivity,
+    pausedForInactivity: pauseReason === "inactivity",
+    pausedForRest: pauseReason === "resting",
+    requestMotionPermission: lift.requestPermission,
     resume,
     error,
     stop,
