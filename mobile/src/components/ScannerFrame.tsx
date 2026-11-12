@@ -4,14 +4,14 @@ import Icon from "./Icon";
 
 export type ScannerFrameProps = {
   barcode: string; scanOutcome: ScanOutcome | null; manualBarcode: string; manualMode: boolean;
-  active: boolean; pausedForInactivity: boolean; pausedForRest: boolean; pausedForDark: boolean; error?: string | null; toast?: string; toastTone: "idle" | "success" | "error";
+  active: boolean; pausedForInactivity: boolean; error?: string | null; toast?: string; toastTone: "idle" | "success" | "error";
   videoRef: RefObject<HTMLVideoElement>; torchSupported: boolean; torchEnabled: boolean;
   onBarcodeChange: (value: string) => void; onTorchToggle: () => void; onResumeCamera: () => void;
   onManageConnection: () => void; onManualModeChange: (manual: boolean) => void; onReady: () => void;
 };
 
 export default function ScannerFrame({ barcode, scanOutcome, manualBarcode, manualMode,
-  active, pausedForInactivity, pausedForRest, pausedForDark, error, toast, toastTone, videoRef, torchSupported, torchEnabled,
+  active, pausedForInactivity, error, toast, toastTone, videoRef, torchSupported, torchEnabled,
   onBarcodeChange, onTorchToggle, onResumeCamera, onManageConnection, onManualModeChange, onReady
 }: ScannerFrameProps) {
   const swipeStartY = useRef<number | null>(null);
@@ -34,9 +34,9 @@ export default function ScannerFrame({ barcode, scanOutcome, manualBarcode, manu
         if (Math.abs(delta) >= 45 && (delta < 0) !== torchEnabled) onTorchToggle();
       }} onPointerCancel={() => { swipeStartY.current = null; }}>
         <video ref={videoRef} className="camera-video" muted playsInline aria-label="Pratinjau kamera scanner barcode" />
-        <div className="camera-tools"><span className="camera-state" data-state={active ? "active" : "idle"}><span className="status-dot" />{active ? "Kamera aktif" : pausedForDark ? "Kamera tertutup" : pausedForRest ? "Ponsel diam" : pausedForInactivity ? "Hemat baterai" : error ? "Kamera belum aktif" : "Menyiapkan"}</span><button className="camera-torch" data-active={torchEnabled} disabled={!active || !torchSupported} onClick={onTorchToggle} aria-pressed={torchEnabled} aria-label={torchEnabled ? "Matikan senter" : "Nyalakan senter"} title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak tersedia pada kamera ini"} type="button"><Icon name="flash" /></button></div>
+        <div className="camera-tools"><span className="camera-state" data-state={active ? "active" : "idle"}><span className="status-dot" />{active ? "Kamera aktif" : pausedForInactivity ? "Hemat baterai" : error ? "Kamera belum aktif" : "Menyiapkan"}</span><button className="camera-torch" data-active={torchEnabled} disabled={!active || !torchSupported} onClick={onTorchToggle} aria-pressed={torchEnabled} aria-label={torchEnabled ? "Matikan senter" : "Nyalakan senter"} title={torchSupported ? "Nyalakan atau matikan senter" : "Senter tidak tersedia pada kamera ini"} type="button"><Icon name="flash" /></button></div>
         {active && <><div className="scan-guide" aria-hidden="true"><i /><i /><i /><i /><span className="scan-line" /></div><div className="camera-caption"><strong>Sejajarkan barcode dalam bingkai</strong><span>EAN · CODE128 · QR</span></div></>}
-        {!active && <div className="camera-placeholder"><Icon name={error ? "alert" : "camera"} /><strong>{error ? "Kamera belum dapat dipakai" : pausedForDark ? "Kamera tertutup" : pausedForRest ? "Kamera berhenti" : pausedForInactivity ? "Kamera dijeda" : "Menyiapkan kamera"}</strong><p>{error ? "Izinkan akses kamera di browser atau gunakan input manual." : pausedForDark ? "Lensa kamera tampak tertutup atau tampilan terlalu gelap. Kamera menyala lagi otomatis saat ponsel digerakkan." : pausedForRest ? "Ponsel terdeteksi diam di permukaan. Kamera menyala lagi otomatis saat ponsel diangkat." : pausedForInactivity ? "Tidak ada scan selama 10 detik. Aktifkan kembali saat siap." : "Izinkan akses kamera untuk mulai memindai barcode."}</p>{(pausedForDark || pausedForRest || pausedForInactivity || error) && <button className="camera-resume" onClick={onResumeCamera} type="button">{error ? "Coba kamera lagi" : "Nyalakan kamera"}</button>}</div>}
+        {!active && <div className="camera-placeholder"><Icon name={error ? "alert" : "camera"} /><strong>{error ? "Kamera belum dapat dipakai" : pausedForInactivity ? "Kamera dijeda" : "Menyiapkan kamera"}</strong><p>{error ? "Izinkan akses kamera di browser atau gunakan input manual." : pausedForInactivity ? "Tidak ada scan selama 10 detik. Aktifkan kembali saat siap." : "Izinkan akses kamera untuk mulai memindai barcode."}</p>{(pausedForInactivity || error) && <button className="camera-resume" onClick={onResumeCamera} type="button">{error ? "Coba kamera lagi" : "Nyalakan kamera"}</button>}</div>}
         {toast && <span className="camera-toast" data-state={toastTone} role="status">{toast}</span>}
       </div>}
       {error && !manualMode && <p className="error-message" role="alert">{error}</p>}
