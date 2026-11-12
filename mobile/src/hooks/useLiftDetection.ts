@@ -14,12 +14,17 @@ type UseLiftDetectionOptions = {
   onRest?: () => void;
   /** Called when the phone leaves the resting state (lifted or tilted). */
   onLift?: () => void;
+  /** Called on a strong movement such as lifting or tilting the phone. */
+  onMove?: () => void;
 };
 
 /** How long the phone must stay still before it is considered resting. */
 const REST_DELAY_MS = 2500;
 /** Acceleration change (m/s²) that counts as movement. */
 const MOTION_THRESHOLD = 0.8;
+/** Acceleration change (m/s²) that counts as lifting or repositioning the phone. */
+const LIFT_THRESHOLD = 2.4;
+const MOVE_NOTIFY_INTERVAL_MS = 600;
 /** |gravity.z| / |gravity| above this means the phone lies flat on a surface. */
 const FLAT_RATIO = 0.82;
 const SAMPLE_INTERVAL_MS = 80;
@@ -44,7 +49,7 @@ function readVector(value: DeviceMotionEventAcceleration | null): Vector | null 
  * and reports when it is lifted again. Uses the motion sensors, so it degrades to a
  * no-op when `devicemotion` is unavailable or permission is denied.
  */
-export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOptions) {
+export function useLiftDetection({ enabled, onRest, onLift, onMove }: UseLiftDetectionOptions) {
   const [supported] = useState<boolean>(() => isMotionSupported());
   const [permission, setPermission] = useState<MotionPermission>(() =>
     !isMotionSupported() ? "unsupported" : needsMotionPermission() ? "unknown" : "granted"
@@ -52,6 +57,7 @@ export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOp
   const permissionRef = useRef(permission);
   const onRestRef = useRef(onRest);
   const onLiftRef = useRef(onLift);
+  const onMoveRef = useRef(onMove);
   const pendingRequestRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
@@ -61,6 +67,10 @@ export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOp
   useEffect(() => {
     onLiftRef.current = onLift;
   }, [onLift]);
+
+  useEffect(() => {
+    onMoveRef.current = onMove;
+  }, [onMove]);
 
   const applyPermission = useCallback((next: MotionPermission) => {
     permissionRef.current = next;
@@ -111,6 +121,7 @@ export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOp
     let previousGravity: Vector | null = null;
     let lastMotionAt = Date.now();
     let lastSampleAt = 0;
+    let lastLiftNotifyAt = 0;
     let resting = false;
     let flat = false;
 
@@ -134,9 +145,12 @@ export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOp
       const linear = readVector(event.acceleration);
       const gravity = readVector(event.accelerationIncludingGravity);
       let moved = false;
+      let lifted = false;
 
       if (linear) {
-        moved = Math.hypot(linear.x, linear.y, linear.z) >= MOTION_THRESHOLD;
+        const magnitude = Math.hypot(linear.x, linear.y, linear.z);
+        if (magnitude >= MOTION_THRESHOLD) moved = true;
+        if (magnitude >= LIFT_THRESHOLD) lifted = true;
       }
 
       if (gravity) {
@@ -147,6 +161,7 @@ export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOp
             gravity.z - previousGravity.z
           );
           if (delta >= MOTION_THRESHOLD) moved = true;
+          if (delta >= LIFT_THRESHOLD) lifted = true;
         }
         previousGravity = gravity;
         const magnitude = Math.hypot(gravity.x, gravity.y, gravity.z);
@@ -154,6 +169,11 @@ export function useLiftDetection({ enabled, onRest, onLift }: UseLiftDetectionOp
         // Landing on a surface restarts the stillness window.
         if (nextFlat && !flat) lastMotionAt = now;
         flat = nextFlat;
+      }
+
+      if (lifted && now - lastLiftNotifyAt >= MOVE_NOTIFY_INTERVAL_MS) {
+        lastLiftNotifyAt = now;
+        onMoveRef.current?.();
       }
 
       if (moved) {

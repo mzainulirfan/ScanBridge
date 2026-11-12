@@ -10,11 +10,51 @@ type UseBarcodeScannerOptions = {
   onScan: (result: ScanResult) => void;
 };
 
-type CameraPauseReason = "none" | "inactivity" | "resting";
+type CameraPauseReason = "none" | "inactivity" | "resting" | "dark";
 
 function getVideoTrack(video: HTMLVideoElement | null): MediaStreamTrack | null {
   const stream = video?.srcObject instanceof MediaStream ? video.srcObject : null;
   return stream?.getVideoTracks()[0] ?? null;
+}
+
+const DARK_SAMPLE_WIDTH = 32;
+const DARK_SAMPLE_HEIGHT = 24;
+const DARK_SAMPLE_INTERVAL_MS = 400;
+/** Ignore the first frames while the camera exposure settles. */
+const DARK_GRACE_MS = 1600;
+/** Darkness must persist this long before the camera is paused. */
+const DARK_SETTLE_MS = 2000;
+/** Mean luma (0–255) at or below which the frame looks covered. */
+const DARK_MEAN_LUMA = 14;
+/** Luma spread allowed for a covered lens; a dim room still shows variance. */
+const DARK_MAX_DEVIATION = 9;
+/** Share of clearly bright pixels allowed before the frame counts as lit. */
+const DARK_MAX_BRIGHT_RATIO = 0.01;
+
+/**
+ * A camera covered by a hand, a pocket, or a desk shows an almost uniformly black
+ * frame. Measuring brightness alone is not enough because a dim room is also dark,
+ * so the spread of luma values is checked as well.
+ */
+function isFrameCovered(context: CanvasRenderingContext2D): boolean {
+  const { data } = context.getImageData(0, 0, DARK_SAMPLE_WIDTH, DARK_SAMPLE_HEIGHT);
+  const pixels = data.length / 4;
+  let sum = 0;
+  let sumOfSquares = 0;
+  let bright = 0;
+  for (let index = 0; index < data.length; index += 4) {
+    const luma = 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+    sum += luma;
+    sumOfSquares += luma * luma;
+    if (luma > 48) bright += 1;
+  }
+  const mean = sum / pixels;
+  const deviation = Math.sqrt(Math.max(0, sumOfSquares / pixels - mean * mean));
+  return (
+    mean <= DARK_MEAN_LUMA &&
+    deviation <= DARK_MAX_DEVIATION &&
+    bright / pixels <= DARK_MAX_BRIGHT_RATIO
+  );
 }
 
 const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
@@ -93,6 +133,10 @@ export function useBarcodeScanner({
     }, [setPause]),
     onLift: useCallback(() => {
       if (pauseReasonRef.current !== "none") resume();
+    }, [resume]),
+    // A covered camera resumes as soon as the phone is picked up again.
+    onMove: useCallback(() => {
+      if (pauseReasonRef.current === "dark") resume();
     }, [resume])
   });
 
@@ -200,6 +244,58 @@ export function useBarcodeScanner({
     };
   }, [cameraAttempt, cooldownMs, enabled, pauseReason, resetIdleTimer, stop]);
 
+  // Pause when the lens is covered: the preview turns into an almost black frame.
+  useEffect(() => {
+    if (!enabled || pauseReason !== "none" || !active) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = DARK_SAMPLE_WIDTH;
+    canvas.height = DARK_SAMPLE_HEIGHT;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+
+    const startedAt = Date.now();
+    let coveredSince: number | null = null;
+    let paused = false;
+
+    const sample = () => {
+      if (paused) return;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || video.videoWidth === 0) {
+        coveredSince = null;
+        return;
+      }
+      if (Date.now() - startedAt < DARK_GRACE_MS) return;
+
+      let covered = false;
+      try {
+        context.drawImage(video, 0, 0, DARK_SAMPLE_WIDTH, DARK_SAMPLE_HEIGHT);
+        covered = isFrameCovered(context);
+      } catch {
+        coveredSince = null;
+        return;
+      }
+
+      if (!covered) {
+        coveredSince = null;
+        return;
+      }
+
+      const now = Date.now();
+      if (coveredSince === null) {
+        coveredSince = now;
+        return;
+      }
+      if (now - coveredSince >= DARK_SETTLE_MS) {
+        paused = true;
+        setPause("dark");
+      }
+    };
+
+    const timer = window.setInterval(sample, DARK_SAMPLE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [active, enabled, pauseReason, setPause]);
+
   useEffect(() => {
     if (!enabled) {
       clearIdleTimer();
@@ -221,6 +317,7 @@ export function useBarcodeScanner({
     active,
     pausedForInactivity: pauseReason === "inactivity",
     pausedForRest: pauseReason === "resting",
+    pausedForDark: pauseReason === "dark",
     requestMotionPermission: lift.requestPermission,
     resume,
     error,
